@@ -4,6 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     gcc \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -13,4 +14,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "run_all.py"]
+CMD ["python", "run_bots.py"]

@@ -299,11 +299,11 @@
 
             <!-- Actions -->
             <div class="grid grid-cols-2 gap-3 mb-6">
-                <button onclick="Telegram.WebApp.showPopup({title:'Coming Soon',message:'Deposit feature will be available soon!'})" class="gradient-green rounded-xl p-4 text-center btn-hover">
+                <button onclick="openDepositBot()" class="gradient-green rounded-xl p-4 text-center btn-hover">
                     <div class="text-lg mb-1">💳</div>
                     <div class="text-sm font-semibold text-white">Deposit</div>
                 </button>
-                <button onclick="Telegram.WebApp.showPopup({title:'Coming Soon',message:'Withdrawal feature will be available soon!'})" class="gradient-orange rounded-xl p-4 text-center btn-hover">
+                <button onclick="requestWithdrawal()" class="rounded-xl p-4 text-center btn-hover" style="background: linear-gradient(135deg, #EF4444, #F97316);">
                     <div class="text-lg mb-1">💸</div>
                     <div class="text-sm font-semibold text-white">Withdraw</div>
                 </button>
@@ -492,6 +492,39 @@
                         <button onclick="transferFunds('toMain')" class="gradient-blue rounded-xl p-3 text-center btn-hover">
                             <div class="text-xs text-white/80">Play → Main</div>
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== WITHDRAW MODAL ==================== -->
+    <div id="withdrawModal" class="fixed inset-0 z-[100] hidden">
+        <div class="modal-overlay absolute inset-0" onclick="hideScreen('withdrawModal')"></div>
+        <div class="absolute inset-x-4 top-[25%] max-w-[380px] mx-auto">
+            <div class="glass rounded-2xl p-5 border border-white/10">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white">💸 Withdraw Funds</h3>
+                    <button onclick="hideScreen('withdrawModal')" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div id="withdraw-balance-display" class="glass rounded-xl p-3 mb-4 text-center">
+                    <div class="text-xs text-white/50">Available Balance</div>
+                    <div id="withdraw-available" class="text-xl font-bold text-bingo-green">0 ETB</div>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-xs text-white/50 uppercase mb-1 block">Amount (ETB)</label>
+                        <input type="number" id="withdrawAmount" placeholder="Enter amount" min="10" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-bingo-orange">
+                    </div>
+                    <div>
+                        <label class="text-xs text-white/50 uppercase mb-1 block">TeleBirr Number</label>
+                        <input type="text" id="withdrawTelebirr" placeholder="+251911000000" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-bingo-orange">
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="hideScreen('withdrawModal')" class="flex-1 bg-white/10 text-white py-3 rounded-xl font-medium btn-hover">Cancel</button>
+                        <button onclick="submitWithdrawal()" class="flex-1 rounded-xl py-3 font-medium btn-hover text-white" style="background: linear-gradient(135deg, #EF4444, #F97316);">Submit</button>
                     </div>
                 </div>
             </div>
@@ -1310,6 +1343,96 @@
             } catch (err) {
                 console.error('Transfer error:', err);
                 showToast('Transfer failed. Please try again.');
+            }
+        }
+
+        // ==================== WITHDRAWAL ====================
+        function hideScreen(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        }
+
+        function openDepositBot() {
+            window.open('https://t.me/yegarapaybot', '_blank');
+        }
+
+        async function requestWithdrawal() {
+            const user = firebase.auth().currentUser;
+            if (!user) return;
+            try {
+                const userDoc = await db.collection('users').doc(String(currentUser.id)).get();
+                const balance = userDoc.data()?.balance || 0;
+                document.getElementById('withdraw-available').textContent = balance + ' ETB';
+            } catch (err) {
+                console.error('Error fetching balance:', err);
+            }
+            document.getElementById('withdrawModal').classList.remove('hidden');
+            document.getElementById('withdrawAmount').value = '';
+            document.getElementById('withdrawTelebirr').value = '';
+        }
+
+        async function submitWithdrawal() {
+            const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            const telebirr = document.getElementById('withdrawTelebirr').value.trim();
+
+            if (!amount || amount < 10) {
+                showToast('Minimum withdrawal is 10 ETB');
+                return;
+            }
+
+            if (!telebirr || !telebirr.startsWith('+251')) {
+                showToast('Enter valid TeleBirr number (+251...)');
+                return;
+            }
+
+            if (!currentUser) return;
+
+            try {
+                const userId = currentUser.user_id || currentUser.id;
+                const userDoc = await db.collection('users').doc(String(userId)).get();
+                const currentBalance = userDoc.data()?.balance || 0;
+
+                if (amount > currentBalance) {
+                    showToast('Insufficient balance');
+                    return;
+                }
+
+                await db.collection('users').doc(String(userId)).update({
+                    balance: currentBalance - amount,
+                    updatedAt: new Date()
+                });
+
+                await db.collection('withdrawals').add({
+                    userId: userId,
+                    username: currentUser.username || 'unknown',
+                    firstName: currentUser.first_name || 'Unknown',
+                    amount: amount,
+                    telebirrNumber: telebirr,
+                    status: 'pending',
+                    createdAt: new Date(),
+                    processedAt: null,
+                    adminNote: ''
+                });
+
+                hideScreen('withdrawModal');
+                showToast('Withdrawal request submitted!');
+                loadUserData();
+            } catch (err) {
+                console.error('Withdrawal error:', err);
+                showToast('Withdrawal failed. Please try again.');
+            }
+        }
+
+        async function loadUserData() {
+            if (!currentUser) return;
+            try {
+                const userDoc = await db.collection('users').doc(String(currentUser.id)).get();
+                if (userDoc.exists) {
+                    currentUser = { id: currentUser.id, ...userDoc.data() };
+                    updateAllDisplays();
+                }
+            } catch (err) {
+                console.error('Error loading user data:', err);
             }
         }
 
