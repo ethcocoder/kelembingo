@@ -71,9 +71,10 @@
         .telegram-header button { -webkit-app-region: no-drag; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .loading-shimmer { background: linear-gradient(90deg, #1A1A2E 25%, #2A2A3E 50%, #1A1A2E 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        .card-select-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 4px; }
         .card-select-grid::-webkit-scrollbar { width: 4px; }
         .card-select-grid::-webkit-scrollbar-thumb { background: #FF8C00; border-radius: 2px; }
-        .card-num { transition: all 0.15s ease; cursor: pointer; }
+        .card-num { transition: all 0.15s ease; cursor: pointer; width: 100%; aspect-ratio: 1; font-size: 11px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
         .card-num:active { transform: scale(0.9); }
         .card-num.taken { background: #FF8C00 !important; color: white !important; pointer-events: none; }
         .card-num.selected { background: #10B981 !important; color: white !important; box-shadow: 0 0 15px rgba(16,185,129,0.5); }
@@ -565,7 +566,7 @@
                 </div>
             </div>
             <!-- Card Grid (scrollable) -->
-            <div class="flex-1 overflow-y-auto px-3 pb-2 card-select-grid" id="card-select-grid"></div>
+            <div class="flex-1 overflow-y-auto px-2 pb-2 card-select-grid" id="card-select-grid"></div>
             <!-- Bottom Buttons -->
             <div class="px-4 py-2 flex gap-3 border-t border-white/5 bg-bingo-dark">
                 <button onclick="cancelCardSelect()" class="flex-1 bg-white/10 text-white py-3 rounded-xl font-semibold text-sm btn-hover">Back</button>
@@ -899,6 +900,9 @@
                 if (!currentUser.phone) {
                     showRegistration();
                 }
+                if (currentUser.is_playing) {
+                    resumeActiveGame();
+                }
             } catch (err) {
                 console.error('Error initializing user:', err);
                 document.getElementById('user-greeting').textContent = 'Error: ' + err.message;
@@ -1011,10 +1015,42 @@
             if (screen === 'history') loadHistory();
         }
 
+        // ==================== RESUME ACTIVE GAME ====================
+        async function resumeActiveGame() {
+            try {
+                const snap = await db.collection('games')
+                    .where('user_id', '==', currentUser.id)
+                    .where('status', '==', 'active')
+                    .limit(1).get();
+                if (snap.empty) {
+                    await db.collection('users').doc(String(currentUser.id)).update({
+                        is_playing: false, updated_at: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    currentUser.is_playing = false;
+                    return;
+                }
+                const gameDoc = snap.docs[0];
+                const gameData = gameDoc.data();
+                currentGameId = gameDoc.id;
+                currentStake = gameData.stake;
+                const cartela = unflattenCartela(gameData.cartela || []);
+                navigateTo('game');
+                setupGameBoard(gameData.stake, cartela, gameData.cartela_number);
+                listenToGame(currentGameId);
+                showToast('Resuming your game...');
+            } catch (err) {
+                console.error('Error resuming game:', err);
+            }
+        }
+
         // ==================== STAKE SELECTION ====================
         async function selectStake(stake) {
             if (!currentUser) { showToast('Loading user data...'); return; }
             if (currentUser.play_wallet < stake) { showToast('Insufficient play wallet! Transfer funds first.'); return; }
+            if (currentUser.is_playing) {
+                resumeActiveGame();
+                return;
+            }
             currentStake = stake;
             showCardSelection(stake);
         }
@@ -1033,7 +1069,7 @@
             try {
                 const allSnap = await db.collection('cartela_pool').get();
                 const takenNumbers = new Set();
-                const availableNumbers = new Set();
+                const availableDocs = {};
 
                 allSnap.forEach(doc => {
                     const d = doc.data();
@@ -1042,27 +1078,28 @@
                         if (d.status === 'assigned' || d.status === 'used') {
                             takenNumbers.add(num);
                         } else {
-                            availableNumbers.add(num);
+                            availableDocs[num] = doc.id;
                         }
                     }
                 });
 
                 const totalCards = 400;
-                let availableCount = availableNumbers.size;
+                let availableCount = Object.keys(availableDocs).length;
 
                 grid.innerHTML = '';
                 for (let i = 1; i <= totalCards; i++) {
                     const cell = document.createElement('div');
                     const isTaken = takenNumbers.has(i);
-                    cell.className = 'card-num rounded-lg text-center py-2 text-xs font-bold flex items-center justify-center aspect-square ';
+                    cell.className = 'card-num font-bold ';
                     if (isTaken) {
-                        cell.className += 'taken bg-bingo-orange text-white';
+                        cell.className += 'taken';
                     } else {
                         cell.className += 'bg-white/10 text-white/80 border border-white/10';
                         cell.onclick = () => selectCard(i, cell);
                     }
                     cell.textContent = i;
                     cell.dataset.num = i;
+                    cell.dataset.docid = availableDocs[i] || '';
                     grid.appendChild(cell);
                 }
 
@@ -1118,7 +1155,7 @@
             if (selectedCardIndex > 0) return;
             stopCardSelectTimer();
             selectedCardIndex = cardNum;
-            cellEl.className = 'card-num rounded-lg text-center py-2 text-xs font-bold flex items-center justify-center aspect-square selected bg-bingo-green text-white';
+            cellEl.className = 'card-num font-bold selected';
             cellEl.style.boxShadow = '0 0 15px rgba(16,185,129,0.5)';
             setTimeout(() => {
                 confirmCardSelection(cardNum);
@@ -1129,14 +1166,35 @@
             document.getElementById('card-select-screen').classList.add('hidden');
             showLoading('Starting game...');
             try {
-                const poolSnap = await db.collection('cartela_pool').where('number', '==', cardNum).where('status', '==', 'available').limit(1).get();
-                if (poolSnap.empty) {
+                const grid = document.getElementById('card-select-grid');
+                const selectedCell = grid.querySelector(`.card-num[data-num="${cardNum}"]`);
+                const poolDocId = selectedCell ? selectedCell.dataset.docid : '';
+                let poolData = null;
+                let poolDocIdFinal = poolDocId;
+
+                if (poolDocId) {
+                    const poolDoc = await db.collection('cartela_pool').doc(poolDocId).get();
+                    if (poolDoc.exists && poolDoc.data().status === 'available') {
+                        poolData = poolDoc.data();
+                    }
+                }
+
+                if (!poolData) {
+                    const poolSnap = await db.collection('cartela_pool').where('number', '==', cardNum).limit(5).get();
+                    for (const doc of poolSnap.docs) {
+                        if (doc.data().status === 'available') {
+                            poolData = doc.data();
+                            poolDocIdFinal = doc.id;
+                            break;
+                        }
+                    }
+                }
+
+                if (!poolData) {
                     hideLoading();
                     showToast('That card was just taken. Try again.');
                     return;
                 }
-                const poolDoc = poolSnap.docs[0];
-                const poolData = poolDoc.data();
                 const flatCartela = poolData.cartela || [];
                 const cartela = unflattenCartela(flatCartela);
                 const cartelaNumber = cardNum;
@@ -1168,7 +1226,7 @@
                     updated_at: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                await db.collection('cartela_pool').doc(poolDoc.id).update({
+                await db.collection('cartela_pool').doc(poolDocIdFinal).update({
                     status: 'assigned',
                     assigned_to: currentUser.id,
                     game_id: currentGameId,
