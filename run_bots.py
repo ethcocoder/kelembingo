@@ -7,32 +7,24 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def run_game_bot():
-    """Run the main game bot"""
     try:
         from bot import main
         main()
     except Exception as e:
         logger.error(f"Game bot error: {e}")
 
-def run_payment_bot():
-    """Run the payment processing bot"""
-    try:
-        from payment_bot import main
-        main()
-    except Exception as e:
-        logger.error(f"Payment bot error: {e}")
 
 def run_admin_bot():
-    """Run the admin notification bot"""
     try:
         from admin_bot import main
         main()
     except Exception as e:
         logger.error(f"Admin bot error: {e}")
 
+
 def run_api():
-    """Run the FastAPI server"""
     try:
         import uvicorn
         from api.admin_api import app
@@ -40,14 +32,14 @@ def run_api():
     except Exception as e:
         logger.error(f"API error: {e}")
 
+
 if __name__ == "__main__":
-    logger.info("🚀 Starting Yegara Bingo Platform - All Services...")
+    logger.info("🚀 Starting Yegara Bingo Platform...")
 
     threads = []
 
     services = [
         ("Game Bot", run_game_bot),
-        ("Payment Bot", run_payment_bot),
         ("Admin Bot", run_admin_bot),
         ("API Server", run_api),
     ]
