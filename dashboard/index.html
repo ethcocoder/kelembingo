@@ -159,10 +159,7 @@
                 <span class="nav-icon text-lg w-6 text-center flex-shrink-0">🃏</span>
                 <span class="nav-label whitespace-nowrap overflow-hidden">Cartela Pool</span>
             </a>
-            <a class="nav-item flex items-center gap-3 px-5 py-3 text-sm font-medium border-r-3 text-gray-400" data-section="prediction" onclick="switchSection('prediction')">
-                <span class="nav-icon text-lg w-6 text-center flex-shrink-0">🧠</span>
-                <span class="nav-label whitespace-nowrap overflow-hidden">Prediction Control</span>
-            </a>
+            
             <a class="nav-item flex items-center gap-3 px-5 py-3 text-sm font-medium border-r-3 text-gray-400" data-section="reports" onclick="switchSection('reports')">
                 <span class="nav-icon text-lg w-6 text-center flex-shrink-0">📈</span>
                 <span class="nav-label whitespace-nowrap overflow-hidden">Reports</span>
@@ -461,113 +458,13 @@
         <div class="glass rounded-2xl overflow-hidden">
             <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
                 <h4 class="font-semibold">Cartela Pool</h4>
-                <button onclick="deleteAllCartelas()" class="text-xs text-red-400 hover:text-red-300">Clear All</button>
+                
             </div>
             <div id="cartelaPoolList" class="divide-y divide-white/5 max-h-[600px] overflow-y-auto"></div>
             <div id="cartelaPoolEmpty" class="text-center py-12 text-gray-500">
                 <p class="text-4xl mb-3">🃏</p>
                 <p>No cartelas in pool</p>
                 <p class="text-xs mt-1">Click "Generate" to create some</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== PREDICTION CONTROL SECTION ==================== -->
-<div id="section-prediction" class="section">
-    <div class="max-w-[1200px] mx-auto mt-6">
-        <div class="mb-6">
-            <h3 class="text-2xl font-bold">Prediction Control</h3>
-            <p class="text-gray-500 text-sm mt-1">Configure winner prediction algorithm</p>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <!-- Mode Selector -->
-            <div class="glass rounded-2xl p-6">
-                <h4 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center text-sm">🧠</span>
-                    Prediction Mode
-                </h4>
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium">Algorithm Mode</p>
-                            <p class="text-xs text-gray-500">Select how winners are determined</p>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button id="predModeAuto" onclick="setPredictionMode('automatic')" class="glass rounded-xl px-4 py-4 text-left transition-all border-2 border-[#10B981]/50 bg-[#10B981]/5">
-                            <span class="text-lg block mb-1">🤖</span>
-                            <span class="text-sm font-semibold block">Automatic</span>
-                            <span class="text-[10px] text-gray-500">AI selects winner</span>
-                        </button>
-                        <button id="predModeAdmin" onclick="setPredictionMode('admin')" class="glass rounded-xl px-4 py-4 text-left transition-all border-2 border-transparent">
-                            <span class="text-lg block mb-1">👤</span>
-                            <span class="text-sm font-semibold block">Admin Control</span>
-                            <span class="text-[10px] text-gray-500">You select winner</span>
-                        </button>
-                    </div>
-
-                    <div class="border-t border-white/5 pt-4 mt-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium">Algorithm Enabled</p>
-                                <p class="text-xs text-gray-500">Toggle prediction algorithm</p>
-                            </div>
-                            <div id="predAlgoToggle" class="toggle-sw on" onclick="this.classList.toggle('on');savePredictionSettings()"></div>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-white/5 pt-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium">Anti-Fraud Detection</p>
-                                <p class="text-xs text-gray-500">Detect suspicious patterns</p>
-                            </div>
-                            <div id="antiFraudToggle" class="toggle-sw on" onclick="this.classList.toggle('on');saveSettings()"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Current Game Status -->
-            <div class="glass rounded-2xl p-6">
-                <h4 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-lg bg-[#FF8C00]/10 flex items-center justify-center text-sm">📡</span>
-                    Current Game Status
-                </h4>
-                <div id="predCurrentGame" class="space-y-4">
-                    <div class="glass rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-sm text-gray-400">Active Game</span>
-                            <span id="predGameStatus" class="text-xs glass px-2 py-1 rounded-full text-[#10B981]">Loading...</span>
-                        </div>
-                        <div class="grid grid-cols-3 gap-3 text-center">
-                            <div>
-                                <p id="predGamePlayers" class="text-lg font-bold">0</p>
-                                <p class="text-[10px] text-gray-500">Players</p>
-                            </div>
-                            <div>
-                                <p id="predGameRound" class="text-lg font-bold">-</p>
-                                <p class="text-[10px] text-gray-500">Round</p>
-                            </div>
-                            <div>
-                                <p id="predGameStake" class="text-lg font-bold text-[#FF8C00]">0</p>
-                                <p class="text-[10px] text-gray-500">Stake</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Admin Select Player (shown when admin mode) -->
-                <div id="adminSelectPanel" class="hidden mt-4">
-                    <h5 class="text-sm font-semibold text-gray-400 mb-3">Select Player for Guaranteed Win</h5>
-                    <div class="relative mb-3">
-                        <input type="text" id="adminPlayerSearch" placeholder="Search player..." oninput="filterAdminPlayers()" class="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 bg-[#0D1117] border border-white/10">
-                    </div>
-                    <div id="adminPlayersList" class="max-h-60 overflow-y-auto space-y-2"></div>
-                    <div id="adminPlayersEmpty" class="text-center py-6 text-gray-500 text-sm">No active players found</div>
-                </div>
             </div>
         </div>
     </div>
@@ -1757,117 +1654,7 @@ function loadCartelaPool() {
     });
 }
 
-function deleteCartela(id) {
-    db.collection('cartela_pool').doc(id).delete().then(function() { loadCartelaPool(); });
-}
 
-function deleteAllCartelas() {
-    openModal('clearAllCartelasModal');
-}
-
-function confirmClearAllCartelas() {
-    closeModal('clearAllCartelasModal');
-    db.collection('cartela_pool').where('status', '==', 'available').get().then(function(snap) {
-        var batch = db.batch();
-        snap.forEach(function(doc) { batch.delete(doc.ref); });
-        batch.commit().then(function() { loadCartelaPool(); });
-    });
-}
-
-// ==================== PREDICTION CONTROL ====================
-var currentPredMode = 'automatic';
-var selectedAdminPlayer = null;
-
-function setPredictionMode(mode){
-    currentPredMode = mode;
-    var autoBtn = document.getElementById('predModeAuto');
-    var adminBtn = document.getElementById('predModeAdmin');
-    var adminPanel = document.getElementById('adminSelectPanel');
-
-    if(mode === 'automatic'){
-        autoBtn.className = 'glass rounded-xl px-4 py-4 text-left transition-all border-2 border-[#10B981]/50 bg-[#10B981]/5';
-        adminBtn.className = 'glass rounded-xl px-4 py-4 text-left transition-all border-2 border-transparent';
-        adminPanel.classList.add('hidden');
-    } else {
-        adminBtn.className = 'glass rounded-xl px-4 py-4 text-left transition-all border-2 border-[#FF8C00]/50 bg-[#FF8C00]/5';
-        autoBtn.className = 'glass rounded-xl px-4 py-4 text-left transition-all border-2 border-transparent';
-        adminPanel.classList.remove('hidden');
-        renderAdminPlayers();
-    }
-    savePredictionSettings();
-}
-
-function renderAdminPlayers(){
-    var activePlayers = allUsers.filter(function(u){return u.is_playing;});
-    var list = document.getElementById('adminPlayersList');
-    var empty = document.getElementById('adminPlayersEmpty');
-
-    if(activePlayers.length === 0){
-        list.innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
-
-    list.innerHTML = activePlayers.map(function(u){
-        var name = u.first_name || 'Unknown';
-        var selClass = selectedAdminPlayer === u._docId ? 'border-[#FF8C00]/50 bg-[#FF8C00]/5' : 'border-transparent';
-        return '<label class="flex items-center gap-3 glass rounded-xl px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-all border-2 ' + selClass + '">' +
-            '<input type="radio" name="adminWinner" value="' + escHtml(u._docId) + '" ' + (selectedAdminPlayer === u._docId ? 'checked' : '') + ' onchange="selectedAdminPlayer=\'' + escHtml(u._docId) + '\';renderAdminPlayers()" class="accent-[#FF8C00]">' +
-            '<div class="flex-1"><p class="text-sm font-semibold">' + escHtml(name) + '</p>' +
-            '<p class="text-[10px] text-gray-500">ID: ' + escHtml(String(u.user_id||'')) + '</p></div>' +
-            '<span class="text-xs text-[#FF8C00] font-semibold">' + (u.balance||0).toFixed(2) + ' ETB</span>' +
-        '</label>';
-    }).join('');
-}
-
-function filterAdminPlayers(){
-    var search = (document.getElementById('adminPlayerSearch').value || '').toLowerCase();
-    var activePlayers = allUsers.filter(function(u){
-        if(!u.is_playing) return false;
-        var name = (u.first_name || '').toLowerCase();
-        var uid = String(u.user_id || '').toLowerCase();
-        return name.indexOf(search) > -1 || uid.indexOf(search) > -1;
-    });
-
-    var list = document.getElementById('adminPlayersList');
-    var empty = document.getElementById('adminPlayersEmpty');
-    if(activePlayers.length === 0){
-        list.innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
-
-    list.innerHTML = activePlayers.map(function(u){
-        var name = u.first_name || 'Unknown';
-        var selClass = selectedAdminPlayer === u._docId ? 'border-[#FF8C00]/50 bg-[#FF8C00]/5' : 'border-transparent';
-        return '<label class="flex items-center gap-3 glass rounded-xl px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-all border-2 ' + selClass + '">' +
-            '<input type="radio" name="adminWinner" value="' + escHtml(u._docId) + '" ' + (selectedAdminPlayer === u._docId ? 'checked' : '') + ' onchange="selectedAdminPlayer=\'' + escHtml(u._docId) + '\'" class="accent-[#FF8C00]">' +
-            '<div class="flex-1"><p class="text-sm font-semibold">' + escHtml(name) + '</p>' +
-            '<p class="text-[10px] text-gray-500">ID: ' + escHtml(String(u.user_id||'')) + '</p></div>' +
-            '<span class="text-xs text-[#FF8C00] font-semibold">' + (u.balance||0).toFixed(2) + ' ETB</span>' +
-        '</label>';
-    }).join('');
-}
-
-function savePredictionSettings(){
-    var algoOn = document.getElementById('predAlgoToggle').classList.contains('on');
-    db.collection('settings').doc('prediction').set({
-        mode: currentPredMode,
-        algorithmEnabled: algoOn,
-        selectedAdminPlayer: selectedAdminPlayer,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(function(e){console.error('Error saving prediction settings:', e);});
-}
-
-function updatePredCurrentGame(){
-    var activeGame = allGames.find(function(g){return g.status === 'active';});
-    document.getElementById('predGameStatus').textContent = activeGame ? activeGame.status : 'No active game';
-    document.getElementById('predGamePlayers').textContent = activeGame ? (activeGame.players_count || 0) : 0;
-    document.getElementById('predGameRound').textContent = activeGame ? (activeGame.current_round || '-') : '-';
-    document.getElementById('predGameStake').textContent = activeGame ? (activeGame.stake || 0) : 0;
-}
 
 // ==================== REPORTS ====================
 function updateReports(){
@@ -2221,6 +2008,16 @@ function approveDeposit(id) {
                 updated_at: firebase.firestore.FieldValue.serverTimestamp()
             });
         }).then(function() {
+            // Notify user
+            fetch('http://127.0.0.1:8000/api/notify', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: parseInt(userId),
+                    text: '✅ Deposit approved!\n💰 ' + amount + ' ETB has been added to your wallet.'
+                })
+            }).catch(console.error);
+
             loadPayments();
             alert('Deposit approved! ' + amount + ' ETB added to user balance.');
         }).catch(function(e) {
@@ -2242,6 +2039,16 @@ function rejectDeposit(id) {
             processedAt: new Date(),
             adminNote: note || 'Rejected by admin'
         }).then(function() {
+            // Notify user
+            fetch('http://127.0.0.1:8000/api/notify', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: parseInt(d.userId),
+                    text: '❌ Deposit rejected.\nReason: ' + (note || 'Rejected by admin') + '\nPlease contact support if you need help.'
+                })
+            }).catch(console.error);
+
             loadPayments();
             alert('Deposit rejected.');
         }).catch(function(e) {

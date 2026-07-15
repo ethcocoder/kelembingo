@@ -2,10 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-from config import db
+from config import db, BOT_TOKEN
 from game.round_engine import RoundEngine
 from handlers.user_manager import UserManager
 from datetime import datetime
+from telegram import Bot
+import asyncio
 
 app = FastAPI(title="Yegara Bingo Admin API", version="2.0.0")
 
@@ -34,6 +36,10 @@ class BingoCheckRequest(BaseModel):
 
 class EndRoundRequest(BaseModel):
     winner_ids: List[int]
+
+class NotifyRequest(BaseModel):
+    user_id: int
+    text: str
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -197,6 +203,15 @@ async def get_user(user_id: int):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"user": user}
+
+@app.post("/api/notify")
+async def notify_user(req: NotifyRequest):
+    try:
+        bot = Bot(token=BOT_TOKEN)
+        await bot.send_message(chat_id=req.user_id, text=req.text)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/health")

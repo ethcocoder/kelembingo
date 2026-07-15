@@ -34,6 +34,7 @@ ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 REG_NAME, REG_PHONE = range(2)
 AWAIT_PHOTO = 2
 WITHDRAW_AMOUNT, WITHDRAW_PHONE = 3, 4
+DEPOSIT_AMOUNT = 10
 TRANSFER_ID, TRANSFER_AMOUNT, TRANSFER_CONFIRM = 5, 6, 7
 BONUS_CONFIRM = 8
 PLAY_STAKE = 9
@@ -106,6 +107,16 @@ async def handle_play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = await user_manager.get_user(uid)
     if not u:
         await update.effective_message.reply_text("Please /start first.")
+        return
+
+    is_reg = u.get('registered') or (u.get('phone') and len(u.get('phone')) > 0)
+    if not is_reg:
+        await update.effective_message.reply_text(
+            "⚠️ You must register first to play!\n\n"
+            "Please tap *📝 Register* from the main menu or use the button below.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📝 Register", callback_data="menu_register")]]),
+            parse_mode='Markdown'
+        )
         return
 
     pw = u.get('play_wallet', 0)
@@ -236,16 +247,11 @@ async def _show_deposit_flow_msg(update: Update, context: ContextTypes.DEFAULT_T
         )
         return ConversationHandler.END
 
-    await user_manager.set_awaiting_screenshot(uid, True)
     await update.effective_message.reply_text(
-        f"💵 *Deposit via TeleBirr*\n\n"
-        f"1. Send *{TELEBIRR_NUMBER}* via TeleBirr\n"
-        f"2. Take a screenshot of the confirmation\n"
-        f"3. Send the screenshot here\n\n"
-        f"⏳ Waiting for your screenshot...",
+        "💵 *Deposit via TeleBirr*\n\nHow much ETB do you want to deposit? (Minimum 10)",
         parse_mode='Markdown',
     )
-    return AWAIT_PHOTO
+    return DEPOSIT_AMOUNT
 
 
 async def _show_deposit_flow(query, context):
@@ -255,14 +261,35 @@ async def _show_deposit_flow(query, context):
         await query.edit_message_text("⚠️ Too many pending deposits. Wait for processing.")
         return
 
-    await user_manager.set_awaiting_screenshot(uid, True)
     await query.edit_message_text(
-        f"💵 *Deposit via TeleBirr*\n\n"
-        f"1. Send *{TELEBIRR_NUMBER}* via TeleBirr\n"
-        f"2. Take a screenshot of the confirmation\n"
-        f"3. Send the screenshot here",
+        "💵 *Deposit via TeleBirr*\n\nHow much ETB do you want to deposit? (Minimum 10)",
         parse_mode='Markdown',
     )
+    return DEPOSIT_AMOUNT
+
+
+async def deposit_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        amount = float(update.message.text.strip())
+        if amount < 10:
+            await update.effective_message.reply_text("⚠️ Minimum deposit is 10 ETB. Please enter again.")
+            return DEPOSIT_AMOUNT
+    except ValueError:
+        await update.effective_message.reply_text("❌ Invalid amount. Please enter a number.")
+        return DEPOSIT_AMOUNT
+
+    context.user_data['deposit_amount'] = amount
+    uid = update.effective_user.id
+    await user_manager.set_awaiting_screenshot(uid, True)
+    await update.effective_message.reply_text(
+        f"💵 *Deposit {amount} ETB via TeleBirr*\n\n"
+        f"1. Send *{TELEBIRR_NUMBER}* via TeleBirr\n"
+        f"2. Take a screenshot of the confirmation\n"
+        f"3. Send the screenshot here\n\n"
+        f"⏳ Waiting for your screenshot...",
+        parse_mode='Markdown',
+    )
+    return AWAIT_PHOTO
 
 
 async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -296,7 +323,7 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check duplicate image
     existing = db.collection('deposits').where('imageHash', '==', image_hash).limit(1).get()
-    if not existing.empty:
+    if existing:
         await update.effective_message.reply_text("❌ This screenshot was already submitted.", reply_markup=MAIN_KEYBOARD)
         await user_manager.set_awaiting_screenshot(uid, False)
         return ConversationHandler.END
@@ -305,13 +332,13 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     extracted = await asyncio.to_thread(_extract_text_from_image, bytes(image_bytes))
 
     txn_id = extracted.get('transaction_id') or f"IMG-{image_hash[:12]}"
-    amount = extracted.get('amount') or 0
+    amount = context.user_data.get('deposit_amount', extracted.get('amount') or 0)
     sender_name = extracted.get('sender_name') or u.get('first_name', 'Unknown')
 
     # Check duplicate transaction ID
     if txn_id and not txn_id.startswith("IMG-"):
         dup = db.collection('deposits').where('transactionId', '==', txn_id).limit(1).get()
-        if not dup.empty:
+        if dup:
             await update.effective_message.reply_text("❌ This transaction was already submitted.", reply_markup=MAIN_KEYBOARD)
             await user_manager.set_awaiting_screenshot(uid, False)
             return ConversationHandler.END
@@ -833,6 +860,7 @@ def main():
     deposit_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^💵 Deposit$"), handle_deposit), CallbackQueryHandler(handle_deposit, pattern="^menu_deposit$")],
         states={
+            DEPOSIT_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)],
             AWAIT_PHOTO: [MessageHandler(filters.PHOTO, handle_screenshot)],
         },
         fallbacks=[CommandHandler("start", start), MessageHandler(filters.Regex("^Cancel$"), cancel)],
