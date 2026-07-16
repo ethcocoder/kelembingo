@@ -901,7 +901,6 @@ def main():
             AWAIT_PHOTO: [MessageHandler(filters.PHOTO, handle_screenshot)],
         },
         fallbacks=[CommandHandler("start", start), MessageHandler(filters.Regex("^Cancel$"), cancel)],
-        per_message=True,
     )
     app.add_handler(deposit_conv, group=3)
 
@@ -913,7 +912,6 @@ def main():
             WITHDRAW_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_phone)],
         },
         fallbacks=[CommandHandler("start", start), MessageHandler(filters.Regex("^Cancel$"), cancel)],
-        per_message=True,
     )
     app.add_handler(withdraw_conv, group=4)
 
@@ -926,7 +924,6 @@ def main():
             TRANSFER_CONFIRM: [CallbackQueryHandler(transfer_confirm, pattern="^tf_")],
         },
         fallbacks=[CommandHandler("start", start), MessageHandler(filters.Regex("^Cancel$"), cancel)],
-        per_message=True,
     )
     app.add_handler(transfer_conv, group=5)
 
@@ -937,7 +934,6 @@ def main():
             BONUS_CONFIRM: [CallbackQueryHandler(bonus_confirm, pattern="^bonus_")],
         },
         fallbacks=[CommandHandler("start", start)],
-        per_message=True,
     )
     app.add_handler(bonus_conv, group=6)
 
