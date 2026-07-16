@@ -19,6 +19,7 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        const API_BASE = 'https://yegara-bingo-api.onrender.com';
     </script>
     <script>
         tailwind.config = {
@@ -1597,7 +1598,7 @@ function generateOneCartela() {
 async function generateCartelaPool() {
     if (!confirm('Generate the 500 fixed cartelas? This will call the API.')) return;
     try {
-        const res = await fetch('/api/cartelas/generate', { method: 'POST' });
+        const res = await fetch(API_BASE + '/api/cartelas/generate', { method: 'POST' });
         const data = await res.json();
         alert(data.status === 'already_exists' ? 'Cartelas already exist.' : 'Generated 500 cartelas successfully!');
         loadCartelaPool();
@@ -2009,7 +2010,7 @@ function approveDeposit(id) {
             });
         }).then(function() {
             // Notify user
-            fetch('/api/notify', {
+            fetch(API_BASE + '/api/notify', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -2040,7 +2041,7 @@ function rejectDeposit(id) {
             adminNote: note || 'Rejected by admin'
         }).then(function() {
             // Notify user
-            fetch('/api/notify', {
+            fetch(API_BASE + '/api/notify', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({

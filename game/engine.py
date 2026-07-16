@@ -2,12 +2,59 @@ import random
 from datetime import datetime
 from firebase_admin import firestore
 
+TOTAL_CARTELAS = 500
+
 
 class GameEngine:
     def __init__(self, db):
         self.db = db
         self.games_ref = db.collection('games')
         self.cartelas_ref = db.collection('cartelas')
+        self.master_ref = db.collection('cartelas_master')
+
+    def _generate_single_cartela(self, seed: int):
+        """Generate a deterministic 5x5 bingo card as flat 25-int list."""
+        rng = random.Random(seed)
+        cols = {
+            'B': rng.sample(range(1, 16), 5),
+            'I': rng.sample(range(16, 31), 5),
+            'N': rng.sample(range(31, 46), 5),
+            'G': rng.sample(range(46, 61), 5),
+            'O': rng.sample(range(61, 76), 5),
+        }
+        flat = []
+        for row_idx in range(5):
+            flat.append(cols['B'][row_idx])
+            flat.append(cols['I'][row_idx])
+            flat.append(0 if row_idx == 2 else cols['N'][row_idx])
+            flat.append(cols['G'][row_idx])
+            flat.append(cols['O'][row_idx])
+        return flat
+
+    async def generate_all_cartelas(self) -> dict:
+        """Generate 500 fixed cartelas in cartelas_master. Idempotent."""
+        existing = list(self.master_ref.limit(1).get())
+        if existing:
+            count = len(list(self.master_ref.get()))
+            return {'status': 'already_exists', 'count': count}
+
+        batch_size = 100
+        generated = 0
+        for start in range(1, TOTAL_CARTELAS + 1, batch_size):
+            batch = self.db.batch()
+            end = min(start + batch_size, TOTAL_CARTELAS + 1)
+            for num in range(start, end):
+                cartela = self._generate_single_cartela(num * 1337)
+                doc_ref = self.master_ref.document(str(num))
+                batch.set(doc_ref, {
+                    'number': num,
+                    'cartela': cartela,
+                    'generated_at': datetime.utcnow(),
+                })
+                generated += 1
+            batch.commit()
+
+        return {'status': 'generated', 'count': generated}
 
     def get_stats(self):
         """Get game statistics (synchronous)"""

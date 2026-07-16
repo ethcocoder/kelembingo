@@ -51,8 +51,11 @@ class NotifyRequest(BaseModel):
 @app.post("/api/cartelas/generate")
 async def generate_cartelas():
     """Generate 500 fixed cartelas (idempotent)."""
-    result = await engine.generate_all_cartelas()
-    return result
+    try:
+        result = await engine.generate_all_cartelas()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/cartelas")
