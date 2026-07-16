@@ -50,7 +50,8 @@ async def deposits(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"💵 *Deposit #{did[:8]}*\n\n"
             f"👤 {d.get('firstName', '?')} (@{d.get('username', '?')})\n"
-            f"💰 {d.get('amount', 0)} ETB\n"
+            f"💰 TeleBirr Name: {d.get('telebirrName', 'N/A')}\n"
+            f"💵 {d.get('amount', 0)} ETB\n"
             f"🔖 TXN: {d.get('transactionId', 'N/A')}\n"
             f"👤 Sender: {d.get('senderName', 'N/A')}\n"
             f"🕐 {d.get('createdAt', 'N/A')}"
@@ -92,7 +93,8 @@ async def withdrawals(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"🎰 *Withdrawal #{wid[:8]}*\n\n"
             f"👤 {w.get('firstName', '?')} (@{w.get('username', '?')})\n"
-            f"💰 {w.get('amount', 0)} ETB\n"
+            f"💰 TeleBirr Name: {w.get('telebirrName', 'N/A')}\n"
+            f"💵 {w.get('amount', 0)} ETB\n"
             f"📱 Phone: {w.get('phone', 'N/A')}\n"
             f"🕐 {w.get('createdAt', 'N/A')}"
         )

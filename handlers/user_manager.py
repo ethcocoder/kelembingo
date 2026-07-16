@@ -116,13 +116,14 @@ class UserManager:
         users = self.users_ref.order_by('wins', direction=firestore.Query.DESCENDING).limit(limit).get()
         return [user.to_dict() for user in users]
 
-    async def register_user(self, user_id: int, name: str, phone: str) -> bool:
+    async def register_user(self, user_id: int, name: str, phone: str, telebirr_name: str = '') -> bool:
         user = await self.get_user(user_id)
         if not user:
             return False
         self.users_ref.document(str(user_id)).update({
             'first_name': name,
             'phone': phone,
+            'telebirr_name': telebirr_name,
             'registered': True,
             'updated_at': datetime.utcnow(),
         })
@@ -132,7 +133,7 @@ class UserManager:
         user = await self.get_user(user_id)
         if not user:
             return False
-        return bool(user.get('registered')) and bool(user.get('phone'))
+        return bool(user.get('registered')) and bool(user.get('phone')) and bool(user.get('telebirr_name'))
 
     async def get_balance_info(self, user_id: int) -> Optional[Dict]:
         user = await self.get_user(user_id)

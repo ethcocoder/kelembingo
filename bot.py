@@ -29,13 +29,13 @@ user_manager = UserManager(db)
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 
 # ─── Conversation states ───
-REG_NAME, REG_PHONE = range(2)
-AWAIT_PHOTO = 2
-WITHDRAW_AMOUNT, WITHDRAW_PHONE = 3, 4
-DEPOSIT_AMOUNT = 10
-TRANSFER_ID, TRANSFER_AMOUNT, TRANSFER_CONFIRM = 5, 6, 7
-BONUS_CONFIRM = 8
-PLAY_STAKE = 9
+REG_NAME, REG_PHONE, REG_TELEBIRR_NAME = range(3)
+AWAIT_PHOTO = 3
+DEPOSIT_AMOUNT = 11
+WITHDRAW_AMOUNT, WITHDRAW_PHONE = 4, 5
+TRANSFER_ID, TRANSFER_AMOUNT, TRANSFER_CONFIRM = 6, 7, 8
+BONUS_CONFIRM = 9
+PLAY_STAKE = 10
 
 MAIN_KEYBOARD = ReplyKeyboardRemove()
 MAIN_INLINE_KEYBOARD = InlineKeyboardMarkup(
@@ -142,7 +142,8 @@ async def handle_register(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(
             f"✅ You are already registered!\n\n"
             f"Name: {u.get('first_name', '')}\n"
-            f"Phone: {u.get('phone', '')}",
+            f"Phone: {u.get('phone', '')}\n"
+            f"TeleBirr Name: {u.get('telebirr_name', 'N/A')}",
             reply_markup=MAIN_KEYBOARD,
         )
         return ConversationHandler.END
@@ -155,20 +156,34 @@ async def handle_register(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def reg_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['reg_name'] = update.message.text.strip()
-    await update.effective_message.reply_text("📱 Please enter your TeleBirr phone number\n(format: +2519XXXXXXXX)")
+    await update.message.reply_text("📱 Please enter your TeleBirr phone number\n(format: +2519XXXXXXXX)")
     return REG_PHONE
 
 
 async def reg_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     phone = update.message.text.strip()
     if not re.match(r'^\+251\d{9}$', phone):
-        await update.effective_message.reply_text("❌ Invalid phone format.\nPlease use: +2519XXXXXXXX")
+        await update.message.reply_text("❌ Invalid phone format.\nPlease use: +2519XXXXXXXX")
         return REG_PHONE
 
+    context.user_data['reg_phone'] = phone
+    await update.message.reply_text(
+        "💰 Please enter your TeleBirr name\n"
+        "(The name registered on your TeleBirr account):"
+    )
+    return REG_TELEBIRR_NAME
+
+
+async def reg_telebirr_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telebirr_name = update.message.text.strip()
     name = context.user_data.get('reg_name', update.effective_user.first_name)
-    await user_manager.register_user(update.effective_user.id, name, phone)
-    await update.effective_message.reply_text(
-        f"✅ Registration complete!\n\nName: {name}\nPhone: {phone}",
+    phone = context.user_data.get('reg_phone', '')
+    await user_manager.register_user(update.effective_user.id, name, phone, telebirr_name)
+    await update.message.reply_text(
+        f"✅ Registration complete!\n\n"
+        f"Name: {name}\n"
+        f"Phone: {phone}\n"
+        f"TeleBirr Name: {telebirr_name}",
         reply_markup=MAIN_KEYBOARD,
     )
     return ConversationHandler.END
@@ -345,6 +360,7 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'userId': str(uid),
         'username': update.effective_user.username or '',
         'firstName': update.effective_user.first_name or '',
+        'telebirrName': u.get('telebirr_name', ''),
         'amount': amount,
         'transactionId': txn_id,
         'senderName': sender_name,
@@ -458,10 +474,12 @@ async def withdraw_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _process_withdraw(update, context, uid, amount, phone):
+    u = await user_manager.get_user(uid)
     withdrawal_data = {
         'userId': str(uid),
         'username': update.effective_user.username or '',
         'firstName': update.effective_user.first_name or '',
+        'telebirrName': u.get('telebirr_name', '') if u else '',
         'amount': amount,
         'phone': phone,
         'status': 'pending',
@@ -709,7 +727,8 @@ async def _notify_admin_deposit(deposit_data, deposit_id, context):
         text = (
             f"💵 *New Deposit Request*\n\n"
             f"👤 {deposit_data.get('firstName', 'Unknown')} (@{deposit_data.get('username', '')})\n"
-            f"💰 Amount: {deposit_data.get('amount', 0)} ETB\n"
+            f"💰 TeleBirr Name: {deposit_data.get('telebirrName', 'N/A')}\n"
+            f"💵 Amount: {deposit_data.get('amount', 0)} ETB\n"
             f"🔖 TXN: {deposit_data.get('transactionId', 'N/A')}\n"
             f"👤 Sender: {deposit_data.get('senderName', 'N/A')}\n"
             f"🆔 {deposit_id}\n"
@@ -740,7 +759,8 @@ async def _notify_admin_withdrawal(withdrawal_data, withdrawal_id, context):
         text = (
             f"🎰 *New Withdrawal Request*\n\n"
             f"👤 {withdrawal_data.get('firstName', 'Unknown')} (@{withdrawal_data.get('username', '')})\n"
-            f"💰 Amount: {withdrawal_data.get('amount', 0)} ETB\n"
+            f"💰 TeleBirr Name: {withdrawal_data.get('telebirrName', 'N/A')}\n"
+            f"💵 Amount: {withdrawal_data.get('amount', 0)} ETB\n"
             f"📱 Phone: {withdrawal_data.get('phone', 'N/A')}\n"
             f"🆔 {withdrawal_id}\n"
             f"🕐 {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
@@ -845,10 +865,11 @@ def main():
 
     # ─── ConversationHandler: Register ───
     reg_conv = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^📝 Register$"), handle_register), CallbackQueryHandler(handle_register, pattern="^menu_register$")],
+        entry_points=[MessageHandler(filters.Regex("^📝 Register$"), handle_register)],
         states={
             REG_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, reg_name)],
             REG_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, reg_phone)],
+            REG_TELEBIRR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, reg_telebirr_name)],
         },
         fallbacks=[CommandHandler("start", start), MessageHandler(filters.Regex("^Cancel$"), cancel)],
     )

