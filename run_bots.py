@@ -1,3 +1,4 @@
+import os
 import threading
 import logging
 import time
@@ -28,7 +29,8 @@ def run_api():
     try:
         import uvicorn
         from api.admin_api import app
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        port = int(os.environ.get("PORT", 8000))
+        uvicorn.run(app, host="0.0.0.0", port=port)
     except Exception as e:
         logger.error(f"API error: {e}")
 

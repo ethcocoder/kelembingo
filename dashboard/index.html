@@ -1597,7 +1597,7 @@ function generateOneCartela() {
 async function generateCartelaPool() {
     if (!confirm('Generate the 500 fixed cartelas? This will call the API.')) return;
     try {
-        const res = await fetch('http://127.0.0.1:8000/api/cartelas/generate', { method: 'POST' });
+        const res = await fetch('/api/cartelas/generate', { method: 'POST' });
         const data = await res.json();
         alert(data.status === 'already_exists' ? 'Cartelas already exist.' : 'Generated 500 cartelas successfully!');
         loadCartelaPool();
@@ -2009,7 +2009,7 @@ function approveDeposit(id) {
             });
         }).then(function() {
             // Notify user
-            fetch('http://127.0.0.1:8000/api/notify', {
+            fetch('/api/notify', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -2040,7 +2040,7 @@ function rejectDeposit(id) {
             adminNote: note || 'Rejected by admin'
         }).then(function() {
             // Notify user
-            fetch('http://127.0.0.1:8000/api/notify', {
+            fetch('/api/notify', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({

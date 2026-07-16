@@ -1,5 +1,8 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from config import db, BOT_TOKEN
@@ -220,6 +223,32 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
+# ─── Dashboard & game (served from same service as API + bots) ───
+DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dashboard")
+
+
+@app.get("/")
+async def dashboard_home():
+    return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
+
+
+@app.get("/game")
+async def game_page():
+    return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
+
+
+@app.get("/login")
+async def login_page():
+    return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
+
+
+if os.path.isdir(os.path.join(DASHBOARD_DIR, "css")):
+    app.mount("/css", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "css")), name="css")
+if os.path.isdir(os.path.join(DASHBOARD_DIR, "js")):
+    app.mount("/js", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "js")), name="js")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

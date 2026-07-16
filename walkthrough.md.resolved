@@ -1,0 +1,23 @@
+# Walkthrough: Enhanced Registration Check & Deposit Amount Flow
+
+I have completed all the tasks from the implementation plan, ensuring your bot acts as a fully contained ecosystem for registration, verified deposits, and live dashboard management.
+
+## 1. Registration Check for Playing Game
+The `Play` feature is now gated.
+- Users who attempt to click **Play** without having set up their phone number will automatically receive a prompt telling them: **"⚠️ You must register first to play!"** with a shortcut button redirecting them directly to the `📝 Register` flow.
+- Fully registered users proceed smoothly to the Yegara Bingo App.
+
+## 2. Dynamic Deposit Amount Entry
+The Telegram deposit interaction now enforces capturing the exact amount from the user.
+- **New Step**: Before asking for a screenshot, the bot prompts "**How much ETB do you want to deposit? (Minimum 10)**".
+- The bot parses the amount using rigorous validation, blocking anything under 10 ETB or invalid text.
+- Once the screenshot is captured, the user-defined amount is explicitly logged into the `deposits` Firestore collection, overriding OCR errors and guaranteeing accuracy for your admins.
+
+## 3. Real-Time Admin Dashboard Approval & Notifications
+Reconstructed the logic running powering the **Admin Dashboard -> Payments**.
+- **Visual Updates**: The dashboard pulls pending deposits from Firestore dynamically.
+- **Approval Processing**: Pressing `✅ Approve` on a specific deposit now performs two simultaneous operations: marked as `approved` and immediately bumps the `balance` field in `users`. This triggers a real-time snapshot listener on the React/JS client in the web app, instantly showcasing the newly acquired ETB.
+- **Telegram Notifications**: Using a newly deployed internal API `[POST] /api/notify`, the web dashboard triggers the exact same Telegram bot messages as `admin_bot.py`. The user receives a friendly "`✅ Deposit approved! 💰 [amount] ETB has been added to your wallet.`" message in Telegram the instant you approve it from a web browser.
+
+> [!TIP]
+> **Restarting bots**: You previously encountered a `telegram.error.Conflict` because multiple python processes were running in the background. I have forcefully cleared these orphaned tasks. You are clear to run `python run_bots.py` again!

@@ -1,8 +1,12 @@
 services:
-  - type: static_site
+  - type: web
     name: yegarabingo
-    runtime: static
+    runtime: docker
     plan: free
-    buildCommand: echo "Static site ready"
-    staticPublishPath: ./dashboard
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
     autoDeploy: true

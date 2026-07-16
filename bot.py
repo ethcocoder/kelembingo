@@ -14,15 +14,13 @@ from telegram.ext import (
     ConversationHandler, ContextTypes, filters,
 )
 from config import (
-    db, ADMIN_CHAT_ID, ADMIN_BOT_TOKEN,
+    db, BOT_TOKEN, ADMIN_CHAT_ID, ADMIN_BOT_TOKEN,
     DEFAULT_STAKE_10, DEFAULT_STAKE_20,
     SUPPORT_USERNAME, REFERRAL_BONUS, BONUS_TO_ETB_RATE, MIN_WITHDRAW,
     TELEBIRR_NUMBER,
 )
 from telegram import Bot
 from handlers.user_manager import UserManager
-
-BOT_TOKEN = "8969362242:AAGuXZOrsDndXYbxfq3AMjGZ5QB-bxOxXY8"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -98,7 +96,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ═══════════════════════════════════════════════════════════════════
 # 🎮 Play — Opens the Mini App directly
 # ═══════════════════════════════════════════════════════════════════
-WEBAPP_URL = "https://yegarabingo.onrender.com/game"
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://yegarabingo.onrender.com/game")
 
 async def handle_play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:

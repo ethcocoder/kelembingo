@@ -1,0 +1,53 @@
+# Enhance Registration Check & Deposit Flow
+
+## User Review Required
+> [!IMPORTANT]
+> This plan covers updating the Telegram Bot's play entry to enforce registration, rewriting the deposit flow to collect an exact amount, and enabling full real-time deposit management from the Admin Dashboard. Please review to ensure it matches your requirements.
+
+## Proposed Changes
+
+### 1. Bot Play Flow Registration Check
+#### [MODIFY] [bot.py](file:///e:/paradox/bingo/bot.py)
+Update `handle_play` to verify the user is fully registered before granting access to the WebApp.
+- If `phone` is not present on the user's Firestore document, the bot will block access and send: "⚠️ You must register first to play! Please tap 📝 Register from the main menu." No play button will be shown.
+- If registered, the user gets the normal Play Now button.
+
+### 2. Deposit Amount Collection
+#### [MODIFY] [bot.py](file:///e:/paradox/bingo/bot.py)
+Rewrite the Telegram Deposit conversation handler to ask for the requested amount first.
+- **New State `DEPOSIT_AMOUNT`**: When a user clicks Deposit, the bot asks "How much ETB do you want to deposit?"
+- **State `AWAIT_PHOTO`**: After entering a valid amount (e.g. 100), the bot then asks for the screenshot.
+- During submission, the explictly entered amount will be saved into the `deposits` Firestore document as `requestedAmount` (or `amount`). The OCR process can still run as a backup but the entered amount takes precedence for the admins.
+- **Bug Fix**: Fix the `AttributeError: 'QueryResultsList' object has no attribute 'empty'` on line 299 and 314 where `existing.empty` and `dup.empty` are used. Since `get()` returns a list-like object, it should be checked with `if existing:` or `if len(list(existing)) > 0:`.
+
+### 3. Admin Dashboard & Admin Bot Approvals
+#### [MODIFY] [index.html](file:///e:/paradox/bingo/dashboard/index.html)
+The dashboard currently has a "Payments" section but needs the logic implemented to approve/reject deposits.
+- Implement `loadPayments()` to listen to `deposits` collection in real-time.
+- Implement `approvePayment(depositId, userId, amount)` which performs a Firestore transaction/batch update to:
+  1. Set deposit `status` to `'approved'`.
+  2. Increment the user's `balance` in the `users` collection by the requested `amount`.
+- Because `game.js` already listens to the user document via Firebase `onSnapshot`, updating the balance here will instantly reflect in the player's webapp in real-time.
+
+#### [MODIFY] [admin_bot.py](file:///e:/paradox/bingo/admin_bot.py)
+- Ensure the admin bot's approval logic properly integrates with the new amount field provided by the user. If the user provides an amount, the admin bot will use that amount instead of relying solely on OCR text.
+
+## Open Questions
+
+> [!WARNING]
+> 1. Is there a minimum deposit amount the bot should enforce when the user types an amount (e.g., minimum 10 ETB)?
+> 2. When an admin approves a deposit from the web dashboard, do you want the dashboard to trigger a Telegram message to the user? (The `admin_bot.py` does this, but doing it from standard JS requires either an API call to a webhook or a Cloud Function).
+
+## Verification Plan
+
+### Automated Tests
+1. `python -m py_compile bot.py`
+2. `python -m py_compile admin_bot.py`
+
+### Manual Verification
+1. Attempt to tap "Play" in the bot without registering. Verify it blocks access.
+2. Complete registration and tap "Play" to ensure access is granted.
+3. Tap "Deposit". Verify bot asks for amount, type "50", send a photo.
+4. Verify the deposit shows up in both the Admin Bot (Telegram) and the Admin Dashboard (Website) with the correct amount.
+5. In the Website Dashboard, approve the payment.
+6. Verify the WebApp play wallet updates instantly in real-time.
