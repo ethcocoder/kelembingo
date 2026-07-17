@@ -34,6 +34,13 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN")
 
+if BOT_TOKEN and ADMIN_BOT_TOKEN and BOT_TOKEN.strip() == ADMIN_BOT_TOKEN.strip():
+    logger.error("=" * 80)
+    logger.error("🛑 CRITICAL CONFIGURATION ERROR: BOT_TOKEN and ADMIN_BOT_TOKEN are identical!")
+    logger.error("Running both bots on the same token causes Telegram '409 Conflict' errors.")
+    logger.error("Please create two distinct bots via @BotFather and assign them separately.")
+    logger.error("=" * 80)
+
 db = firestore_db.MockFirestoreClient()
 logger.info("SQL database emulator initialized successfully")
 

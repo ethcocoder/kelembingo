@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from config import db
+import firestore_db as firestore
 
 ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN", "")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))

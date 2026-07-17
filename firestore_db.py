@@ -37,8 +37,11 @@ class SystemEvent(Base):
     event_type = Column(String)  # 'set', 'update', 'delete'
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+# Create tables (defensively catch race conditions under concurrent multi-process startup)
+try:
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+except Exception as e:
+    logger.warning(f"Could not run create_all (might already be created/locked): {e}")
 
 # Firestore Field Special Values
 class Increment:
