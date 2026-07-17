@@ -1,53 +1,42 @@
 import os
 import logging
 from dotenv import load_dotenv
-import firebase_admin
-from firebase_admin import credentials, firestore
+import sys
+import types
+import firestore_db
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+# Create in-memory mock modules to satisfy existing bot code imports
+firebase_admin_mock = types.ModuleType("firebase_admin")
+firebase_admin_mock._apps = [True]
+firebase_admin_mock.initialize_app = lambda *args, **kwargs: None
+
+class MockCredentialsCertificate:
+    def __init__(self, *args, **kwargs):
+        pass
+
+credentials_mock = types.ModuleType("firebase_admin.credentials")
+credentials_mock.Certificate = MockCredentialsCertificate
+
+firestore_mock = types.ModuleType("firebase_admin.firestore")
+firestore_mock.Increment = firestore_db.Increment
+firestore_mock.ArrayUnion = firestore_db.ArrayUnion
+firestore_mock.FieldFilter = firestore_db.FieldFilter
+firestore_mock.transactional = firestore_db.transactional
+
+sys.modules["firebase_admin"] = firebase_admin_mock
+sys.modules["firebase_admin.credentials"] = credentials_mock
+sys.modules["firebase_admin.firestore"] = firestore_mock
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN")
 
-FIREBASE_CONFIG = {
-    "apiKey": os.getenv("FIREBASE_API_KEY"),
-    "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
-    "projectId": os.getenv("FIREBASE_PROJECT_ID"),
-    "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
-    "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
-    "appId": os.getenv("FIREBASE_APP_ID"),
-    "measurementId": os.getenv("FIREBASE_MEASUREMENT_ID"),
-}
+db = firestore_db.MockFirestoreClient()
+logger.info("SQL database emulator initialized successfully")
 
-db = None
-
-try:
-    private_key = os.getenv("FIREBASE_PRIVATE_KEY", "")
-    if private_key:
-        private_key = private_key.replace("\\n", "\n")
-
-    cred = credentials.Certificate({
-        "type": os.getenv("FIREBASE_TYPE", "service_account"),
-        "project_id": FIREBASE_CONFIG["projectId"],
-        "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID", ""),
-        "private_key": private_key,
-        "client_email": os.getenv("FIREBASE_CLIENT_EMAIL", ""),
-        "client_id": os.getenv("FIREBASE_CLIENT_ID", ""),
-        "auth_uri": os.getenv("FIREBASE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-        "token_uri": os.getenv("FIREBASE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-        "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
-        "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL", ""),
-    })
-
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    logger.info("Firebase initialized successfully")
-except Exception as e:
-    logger.error(f"Firebase initialization failed: {e}")
-    raise
 
 DEFAULT_STAKE_10 = int(os.getenv("DEFAULT_STAKE_10", 10))
 DEFAULT_STAKE_20 = int(os.getenv("DEFAULT_STAKE_20", 20))

@@ -971,7 +971,7 @@ def main():
             MessageHandler(filters.Regex("^📝 Register$"), handle_register),
             CallbackQueryHandler(handle_register, pattern="^menu_register$"),
         ],
-        per_message=True,
+        per_message=False,
         states={
             REG_CONTACT: [MessageHandler(filters.CONTACT, reg_contact),
                           MessageHandler(filters.TEXT & ~filters.COMMAND, reg_contact)],

@@ -1,19 +1,22 @@
 import os
 import random
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query as FastAPIQuery
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from typing import List, Optional
+import json
+import datetime
 from config import db, BOT_TOKEN
+from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFilter, Increment, ArrayUnion
+
 from game.round_engine import RoundEngine, STAKE, PRIZE_MULTIPLIER
 from handlers.user_manager import UserManager
 from datetime import datetime, timedelta, timezone
 from telegram import Bot
-from firebase_admin import firestore
-from google.cloud.firestore_v1.base_query import FieldFilter
+# Firebase replaced by SQLAlchemy emulator (firestore_db.py)
 
 app = FastAPI(title="Yegara Bingo Admin API", version="2.0.0")
 
@@ -162,22 +165,22 @@ def _start_game_loop(round_id: str):
 
 @app.on_event("startup")
 async def start_background_monitor():
-    """Periodically check for rounds that need a game loop."""
+    """Startup: monitors rounds AND broadcasts WS events."""
     async def _monitor():
         while True:
             try:
-                # Find rounds in 'selecting' that need a game loop
                 docs = list(db.collection('rounds')
-                           .where(filter=FieldFilter('status', '==', 'selecting'))
+                           .where('status', '==', 'selecting')
                            .get())
                 for doc in docs:
                     rid = doc.id
                     if rid not in _active_game_tasks:
                         _start_game_loop(rid)
             except Exception as e:
-                print(f"[Monitor] Error: {e}")
+                pass  # silently skip — no Firebase quota hits
             await asyncio.sleep(5)
     asyncio.create_task(_monitor())
+    asyncio.create_task(_event_broadcast_loop())
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -371,6 +374,190 @@ async def health_check():
 @app.head("/")
 async def head_root():
     return Response(status_code=200)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Database REST Bridge  (Frontend → SQL Emulator)
+# ═══════════════════════════════════════════════════════════════
+
+class DocSetRequest(BaseModel):
+    data: dict
+    merge: bool = False
+
+class DocUpdateRequest(BaseModel):
+    data: dict
+
+class QueryRequest(BaseModel):
+    filters: list = []
+    order_by: Optional[str] = None
+    order_dir: str = "ASCENDING"
+    limit_n: Optional[int] = None
+
+
+@app.get("/api/db/{collection}/{doc_id}")
+async def db_get_doc(collection: str, doc_id: str):
+    snap = db.collection(collection).document(doc_id).get()
+    if not snap.exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"id": snap.id, "data": snap.to_dict()}
+
+
+@app.post("/api/db/{collection}/{doc_id}")
+async def db_set_doc(collection: str, doc_id: str, req: DocSetRequest):
+    db.collection(collection).document(doc_id).set(req.data, merge=req.merge)
+    return {"ok": True}
+
+
+@app.patch("/api/db/{collection}/{doc_id}")
+async def db_update_doc(collection: str, doc_id: str, req: DocUpdateRequest):
+    try:
+        db.collection(collection).document(doc_id).update(req.data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"ok": True}
+
+
+@app.delete("/api/db/{collection}/{doc_id}")
+async def db_delete_doc(collection: str, doc_id: str):
+    db.collection(collection).document(doc_id).delete()
+    return {"ok": True}
+
+
+@app.get("/api/db/{collection}")
+async def db_query_collection(
+    collection: str,
+    filters: Optional[str] = None,  # JSON string: [[field,op,val],...]
+    order_by: Optional[str] = None,
+    order_dir: str = "ASCENDING",
+    limit_n: Optional[int] = None
+):
+    ref = db.collection(collection)
+    if filters:
+        try:
+            for f in json.loads(filters):
+                ref = ref.where(f[0], f[1], f[2])
+        except Exception:
+            pass
+    if order_by:
+        ref = ref.order_by(order_by, order_dir)
+    if limit_n:
+        ref = ref.limit(limit_n)
+    docs = ref.get()
+    return [{"id": d.id, "data": d.to_dict()} for d in docs]
+
+
+@app.post("/api/db/{collection}")
+async def db_add_doc(collection: str, req: DocSetRequest):
+    ref = db.collection(collection).add(req.data)
+    return {"id": ref.id}
+
+
+# ─── WebSocket Manager ───
+class ConnectionManager:
+    def __init__(self):
+        # Each connection: {ws, collection, doc_id (or None for collection watch)}
+        self.connections: list = []
+
+    async def connect(self, ws: WebSocket, collection: str, doc_id: Optional[str]):
+        await ws.accept()
+        self.connections.append({"ws": ws, "collection": collection, "doc_id": doc_id})
+
+    def disconnect(self, ws: WebSocket):
+        self.connections = [c for c in self.connections if c["ws"] is not ws]
+
+    async def broadcast_event(self, collection: str, doc_id: str):
+        """Send updated snapshot to any subscriber watching this collection/doc."""
+        dead = []
+        for conn in self.connections:
+            if conn["collection"] != collection:
+                continue
+            if conn["doc_id"] and conn["doc_id"] != doc_id:
+                continue
+            try:
+                # Fetch latest snapshot
+                snap = db.collection(collection).document(doc_id).get()
+                payload = {
+                    "type": "snapshot",
+                    "collection": collection,
+                    "id": doc_id,
+                    "data": snap.to_dict() if snap.exists else None,
+                    "exists": snap.exists
+                }
+                await conn["ws"].send_text(json.dumps(payload))
+            except Exception:
+                dead.append(conn["ws"])
+        for ws in dead:
+            self.disconnect(ws)
+
+ws_manager = ConnectionManager()
+
+
+@app.websocket("/api/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Client sends: {collection, doc_id?}  then receives live updates."""
+    await websocket.accept()
+    sub = None
+    try:
+        # First message = subscription request
+        raw = await websocket.receive_text()
+        msg = json.loads(raw)
+        collection = msg.get("collection")
+        doc_id = msg.get("doc_id")
+        if not collection:
+            await websocket.close(code=1003)
+            return
+        sub = {"ws": websocket, "collection": collection, "doc_id": doc_id}
+        ws_manager.connections.append(sub)
+        # Send initial snapshot
+        if doc_id:
+            snap = db.collection(collection).document(doc_id).get()
+            payload = {
+                "type": "snapshot",
+                "collection": collection,
+                "id": doc_id,
+                "data": snap.to_dict() if snap.exists else None,
+                "exists": snap.exists
+            }
+            await websocket.send_text(json.dumps(payload))
+        else:
+            docs = db.collection(collection).get()
+            payload = {
+                "type": "query_snapshot",
+                "collection": collection,
+                "docs": [{"id": d.id, "data": d.to_dict()} for d in docs]
+            }
+            await websocket.send_text(json.dumps(payload))
+        # Keep alive and handle client disconnects
+        while True:
+            await websocket.receive_text()  # ping or ignored
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if sub:
+            ws_manager.connections = [c for c in ws_manager.connections if c["ws"] is not websocket]
+
+
+# ─── Background event broadcaster ───
+async def _event_broadcast_loop():
+    """Poll system_events table and push WebSocket updates to subscribed clients."""
+    last_id = ""
+    while True:
+        try:
+            sess = SessionLocal()
+            events = sess.query(SystemEvent)
+            if last_id:
+                events = events.filter(SystemEvent.id > last_id)
+            events = events.order_by(SystemEvent.created_at).limit(50).all()
+            for ev in events:
+                last_id = ev.id
+                await ws_manager.broadcast_event(ev.collection, ev.doc_id)
+            sess.close()
+        except Exception as e:
+            pass
+        await asyncio.sleep(0.5)
+
+
+# (startup merged into start_background_monitor above)
 
 
 # ─── Dashboard & game (served from same service as API + bots) ───
