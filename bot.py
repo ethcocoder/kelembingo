@@ -987,7 +987,7 @@ def main():
             CallbackQueryHandler(handle_deposit, pattern="^menu_deposit$"),
             CallbackQueryHandler(handle_deposit, pattern="^bal_deposit$"),
         ],
-        per_message=True,
+        per_message=False,
         states={
             DEPOSIT_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)],
             DEPOSIT_TELEBIRR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_telebirr_name)],
@@ -1009,7 +1009,7 @@ def main():
             CallbackQueryHandler(handle_withdraw, pattern="^menu_withdraw$"),
             CallbackQueryHandler(handle_withdraw, pattern="^bal_withdraw$"),
         ],
-        per_message=True,
+        per_message=False,
         states={
             WITHDRAW_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_amount)],
             WITHDRAW_TELEBIRR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_telebirr_name)],
@@ -1026,7 +1026,7 @@ def main():
     # ─── ConversationHandler: Transfer ───
     transfer_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🎁 Transfer$"), handle_transfer), CallbackQueryHandler(handle_transfer, pattern="^menu_transfer$")],
-        per_message=True,
+        per_message=False,
         states={
             TRANSFER_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_id)],
             TRANSFER_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount)],
@@ -1039,7 +1039,7 @@ def main():
     # ─── ConversationHandler: Convert Bonus ───
     bonus_conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🔄 Convert Bonus$"), handle_convert_bonus), CallbackQueryHandler(handle_convert_bonus, pattern="^menu_bonus$")],
-        per_message=True,
+        per_message=False,
         states={
             BONUS_CONFIRM: [CallbackQueryHandler(bonus_confirm, pattern="^bonus_")],
         },
