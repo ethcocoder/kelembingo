@@ -130,8 +130,24 @@ async function showCardSelection(roundId, roundData) {
 
         const deadline = roundData.selection_deadline;
         if (deadline) {
-            const deadlineMs = deadline.toDate ? deadline.toDate().getTime() : new Date(deadline).getTime();
-            selectionDeadline = deadlineMs;
+            let deadlineMs;
+            if (typeof deadline === 'object' && deadline.toDate) {
+                deadlineMs = deadline.toDate().getTime();
+            } else if (typeof deadline === 'string') {
+                deadlineMs = new Date(deadline).getTime();
+            } else if (typeof deadline === 'object' && deadline._iso) {
+                deadlineMs = new Date(deadline._iso).getTime();
+            } else if (typeof deadline === 'object' && deadline.seconds) {
+                deadlineMs = deadline.seconds * 1000;
+            } else {
+                deadlineMs = new Date(deadline).getTime();
+            }
+            
+            if (isNaN(deadlineMs)) {
+                selectionDeadline = serverNow() + SELECTION_SECONDS * 1000;
+            } else {
+                selectionDeadline = deadlineMs;
+            }
         } else {
             selectionDeadline = serverNow() + SELECTION_SECONDS * 1000;
         }

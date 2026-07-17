@@ -186,8 +186,23 @@ function listenToRound(roundId) {
             document.getElementById('game-countdown').classList.remove('hidden');
             const deadline = data.selection_deadline;
             if (deadline) {
-                const dlMs = deadline.toDate ? deadline.toDate().getTime() : new Date(deadline).getTime();
-                startSelectionCountdownOnGame(dlMs);
+                let dlMs;
+                if (typeof deadline === 'object' && deadline.toDate) {
+                    dlMs = deadline.toDate().getTime();
+                } else if (typeof deadline === 'string') {
+                    dlMs = new Date(deadline).getTime();
+                } else if (typeof deadline === 'object' && deadline._iso) {
+                    dlMs = new Date(deadline._iso).getTime();
+                } else if (typeof deadline === 'object' && deadline.seconds) {
+                    dlMs = deadline.seconds * 1000;
+                } else {
+                    dlMs = new Date(deadline).getTime();
+                }
+                if (!isNaN(dlMs)) {
+                    startSelectionCountdownOnGame(dlMs);
+                } else {
+                    document.getElementById('game-countdown').textContent = 'Waiting for players...';
+                }
             } else {
                 document.getElementById('game-countdown').textContent = 'Waiting for players...';
             }
@@ -196,8 +211,21 @@ function listenToRound(roundId) {
 
             const nextAt = data.next_number_at;
             if (nextAt) {
-                const nextMs = nextAt.toDate ? nextAt.toDate().getTime() : new Date(nextAt).getTime();
-                startGameCountdown(nextMs);
+                let nextMs;
+                if (typeof nextAt === 'object' && nextAt.toDate) {
+                    nextMs = nextAt.toDate().getTime();
+                } else if (typeof nextAt === 'string') {
+                    nextMs = new Date(nextAt).getTime();
+                } else if (typeof nextAt === 'object' && nextAt._iso) {
+                    nextMs = new Date(nextAt._iso).getTime();
+                } else if (typeof nextAt === 'object' && nextAt.seconds) {
+                    nextMs = nextAt.seconds * 1000;
+                } else {
+                    nextMs = new Date(nextAt).getTime();
+                }
+                if (!isNaN(nextMs)) {
+                    startGameCountdown(nextMs);
+                }
             }
 
             const called = data.called_numbers || [];

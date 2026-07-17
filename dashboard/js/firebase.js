@@ -39,6 +39,7 @@
     class MockTimestamp {
         constructor(isoString) { this._iso = isoString; }
         toDate() { return new Date(this._iso); }
+        toJSON() { return this._iso; }
         static now() { return new MockTimestamp(new Date().toISOString()); }
         static fromDate(d) { return new MockTimestamp(d instanceof Date ? d.toISOString() : d); }
         get serverTimestamp() { return MockTimestamp.now(); }
