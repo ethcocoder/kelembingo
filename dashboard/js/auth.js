@@ -97,22 +97,26 @@ function startStatsListener() {
         snap.forEach(doc => { totalPlayers += (doc.data().player_count || 0); });
         document.getElementById('stat-players').textContent = totalPlayers;
     });
-    db.collection('rounds').where('status', '==', 'completed').get().then(snap => {
-        document.getElementById('stat-games').textContent = snap.size;
-    }).catch(() => {});
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    db.collection('rounds').where('status', '==', 'completed').get().then(snap => {
-        let winners = 0;
-        snap.forEach(doc => {
-            const d = doc.data();
-            if (d.winners && d.winners.length > 0) {
-                const ca = d.completed_at;
-                if (ca) {
-                    const dt = ca.toDate ? ca.toDate() : new Date(ca);
-                    if (dt >= today) winners += d.winners.length;
+    function refreshCompletedStats() {
+        db.collection('rounds').where('status', '==', 'completed').get().then(snap => {
+            document.getElementById('stat-games').textContent = snap.size;
+        }).catch(() => {});
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        db.collection('rounds').where('status', '==', 'completed').get().then(snap => {
+            let winners = 0;
+            snap.forEach(doc => {
+                const d = doc.data();
+                if (d.winners && d.winners.length > 0) {
+                    const ca = d.completed_at;
+                    if (ca) {
+                        const dt = ca.toDate ? ca.toDate() : new Date(ca);
+                        if (dt >= today) winners += d.winners.length;
+                    }
                 }
-            }
-        });
-        document.getElementById('stat-winners').textContent = winners;
-    }).catch(() => {});
+            });
+            document.getElementById('stat-winners').textContent = winners;
+        }).catch(() => {});
+    }
+    refreshCompletedStats();
+    setInterval(refreshCompletedStats, 30000);
 }

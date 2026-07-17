@@ -94,6 +94,7 @@ async function showCardSelection(roundId, roundData) {
     updateSelectedInfo();
 
     document.getElementById('cs-stake').textContent = STAKE + ' ETB';
+    document.getElementById('cs-derash').textContent = Math.round(STAKE * PRIZE_MULTIPLIER) + ' ETB';
     document.getElementById('cs-main-wallet').textContent = (currentUser.balance || 0) + ' ETB';
     document.getElementById('cs-play-wallet').textContent = (currentUser.play_wallet || 0) + ' ETB';
     document.getElementById('cs-preview-container').classList.add('hidden');
@@ -280,7 +281,7 @@ function updateSelectedInfo() {
     const btn = document.getElementById('cs-confirm-btn');
     if (count > 0) {
         info.classList.remove('hidden');
-        if(btn) btn.classList.add('hidden'); // explicitly keep hidden
+        if(btn) btn.classList.remove('hidden');
         document.getElementById('cs-selected-count').textContent = count + '/' + MAX_CARTELAS;
         document.getElementById('cs-selected-total').textContent = (count * STAKE) + ' ETB';
     } else {

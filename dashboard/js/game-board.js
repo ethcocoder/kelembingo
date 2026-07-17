@@ -9,7 +9,7 @@ function setupGameBoard() {
     document.getElementById('game-called-count').textContent = '0';
     document.getElementById('game-timer').textContent = '--';
     document.getElementById('game-players').textContent = '...';
-    document.getElementById('game-derash').textContent = '...';
+    document.getElementById('game-derash').textContent = Math.round(STAKE * PRIZE_MULTIPLIER) + ' ETB';
     document.getElementById('game-countdown').classList.add('hidden');
 
     // Show/hide spectator message vs cartela area
@@ -162,7 +162,7 @@ function autoMarkAllCartelas(num) {
 function toggleAutoMark() {
     autoMarkEnabled = !autoMarkEnabled;
     const toggle = document.getElementById('auto-toggle');
-    toggle.classList.toggle('active', autoMarkEnabled);
+    toggle.classList.toggle('on', autoMarkEnabled);
     showToast(autoMarkEnabled ? 'Auto-mark ON' : 'Auto-mark OFF');
     if (autoMarkEnabled) {
         calledNumbers.forEach(num => autoMarkAllCartelas(num));
@@ -172,14 +172,14 @@ function toggleAutoMark() {
 // ==================== LISTEN TO ROUND (real-time) ====================
 function listenToRound(roundId) {
     if (roundUnsubscribe) roundUnsubscribe();
-    let prevCalledCount = 0;
+    let prevCalledCount = calledNumbers.size;
 
     roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(snap => {
         if (!snap.exists) return;
         const data = snap.data();
 
         document.getElementById('game-players').textContent = data.player_count || 0;
-        document.getElementById('game-derash').textContent = Math.round(STAKE * PRIZE_MULTIPLIER);
+        document.getElementById('game-derash').textContent = Math.round((data.player_count || 0) * STAKE * 0.75) + ' ETB';
         document.getElementById('game-called-count').textContent = (data.called_numbers || []).length;
 
         if (data.status === 'selecting') {
@@ -237,6 +237,8 @@ function listenToRound(roundId) {
                     highlightMasterNumber(num, isLast);
                     addCalledNumberTag(num);
                     autoMarkAllCartelas(num);
+                    var _strip = document.getElementById('called-tags');
+                    if (_strip) _strip.scrollLeft = _strip.scrollWidth;
                     if (isLast) {
                         showNumberAnnouncement(num);
                         playNumberSound(num);
@@ -270,69 +272,66 @@ function showNumberAnnouncement(num) {
 
 // ==================== BINGO CHECK ====================
 async function checkMyBingo() {
-    const calledArr = Array.from(calledNumbers);
-    for (const [cartelaNum, flat] of Object.entries(myCartelas)) {
-        if (checkBingoLocal(flat, calledArr)) {
-            try {
-                const roundRef = db.collection('rounds').doc(currentRoundId);
-                const uidStr = String(currentUser.id);
+    try {
+        const calledArr = Array.from(calledNumbers);
+        for (const [cartelaNum, flat] of Object.entries(myCartelas)) {
+            if (checkBingoLocal(flat, calledArr)) {
+                try {
+                    const roundRef = db.collection('rounds').doc(currentRoundId);
+                    const uidStr = String(currentUser.id);
 
-                await db.runTransaction(async (txn) => {
-                    const roundSnap = await txn.get(roundRef);
-                    if (!roundSnap.exists) return;
-                    const rd = roundSnap.data();
-                    const currentWinners = rd.winners || [];
-                    if (currentWinners.includes(uidStr)) return;
+                    await db.runTransaction(async (txn) => {
+                        const roundSnap = await txn.get(roundRef);
+                        if (!roundSnap.exists) return;
+                        const rd = roundSnap.data();
+                        if (rd.status === 'completed') return;
+                        const currentWinners = rd.winners || [];
+                        if (currentWinners.includes(uidStr)) return;
 
-                    const newWinners = [...currentWinners, uidStr];
+                        const newWinners = [...currentWinners, uidStr];
+                        
+                        const userRef = db.collection('users').doc(uidStr);
+                        const userDoc = await txn.get(userRef);
+                        const ud = userDoc.data();
+                        
+                        txn.update(userRef, {
+                            wins: (ud.wins || 0) + 1,
+                            total_games: (ud.total_games || 0) + 1,
+                            is_playing: false,
+                            updated_at: firebase.firestore.FieldValue.serverTimestamp()
+                        });
 
-                    // Because derash logic is now dynamically handled server-side
-                    // and distributed appropriately, we update winners list.
-                    
-                    const userRef = db.collection('users').doc(uidStr);
-                    const userDoc = await txn.get(userRef);
-                    const ud = userDoc.data();
-                    
-                    // We don't credit play_wallet here! The backend should distribute the prize! 
-                    // Actually, if frontend handles the prize directly as written previously...
-                    // Wait, earlier I updated `end_round` in python which splits the Dynamic Derash.
-                    // If the backend handles it, the frontend shouldn't distribute prize!
-                    
-                    txn.update(userRef, {
-                        wins: (ud.wins || 0) + 1,
-                        total_games: (ud.total_games || 0) + 1,
-                        is_playing: false,
-                        updated_at: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    for (const pid of Object.keys(rd.players || {})) {
-                        if (pid !== uidStr) {
-                            const ref2 = db.collection('users').doc(pid);
-                            const d2 = await txn.get(ref2);
-                            if (d2.exists) {
-                                txn.update(ref2, {
-                                    losses: (d2.data().losses || 0) + 1,
-                                    total_games: (d2.data().total_games || 0) + 1,
-                                    is_playing: false,
-                                    updated_at: firebase.firestore.FieldValue.serverTimestamp()
-                                });
+                        for (const pid of Object.keys(rd.players || {})) {
+                            if (pid !== uidStr) {
+                                const ref2 = db.collection('users').doc(pid);
+                                const d2 = await txn.get(ref2);
+                                if (d2.exists) {
+                                    txn.update(ref2, {
+                                        losses: (d2.data().losses || 0) + 1,
+                                        total_games: (d2.data().total_games || 0) + 1,
+                                        is_playing: false,
+                                        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+                                    });
+                                }
                             }
                         }
-                    }
 
-                    txn.update(roundRef, {
-                        status: 'completed',
-                        winners: newWinners,
-                        winner_name: currentUser.first_name || 'Player',
-                        winning_cartela: parseInt(cartelaNum),
-                        completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                        txn.update(roundRef, {
+                            status: 'completed',
+                            winners: newWinners,
+                            winner_name: currentUser.first_name || 'Player',
+                            winning_cartela: parseInt(cartelaNum),
+                            completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                        });
                     });
-                });
-            } catch (err) {
-                console.error('Error claiming bingo:', err);
+                } catch (err) {
+                    console.error('Error claiming bingo:', err);
+                }
+                return;
             }
-            return;
         }
+    } catch (err) {
+        console.error('checkMyBingo unexpected error:', err);
     }
 }
 
@@ -352,6 +351,8 @@ function checkBingoLocal(flat, called) {
 function handleRoundCompleted(data) {
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
     stopGameCountdown();
+    document.getElementById('number-announce').classList.add('hidden');
+    document.getElementById('number-waiting').classList.remove('hidden');
     listenerReady = false;
     const uidStr = String(currentUser.id);
     const isWinner = (data.winners || []).includes(uidStr);
@@ -440,8 +441,10 @@ function loadMyCartelas(roundData) {
         called.forEach((num, idx) => {
             calledNumbers.add(num);
             highlightMasterNumber(num, idx === called.length - 1);
-            addCalledNumberTag(num);
-            autoMarkAllCartelas(num);
+                    addCalledNumberTag(num);
+                    const strip = document.getElementById('called-tags');
+                    if (strip) strip.scrollLeft = strip.scrollWidth;
+                    autoMarkAllCartelas(num);
         });
     }).catch(err => {
         console.error('Error loading cartelas:', err);

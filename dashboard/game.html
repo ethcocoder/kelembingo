@@ -186,9 +186,12 @@
             <div class="w-full md:w-1/2 glass rounded-xl p-2 flex flex-col gap-2">
                 <!-- Called number tags + Sound -->
                 <div class="flex items-center gap-1 overflow-x-auto" style="scrollbar-width: none; min-height: 28px;">
-                    <div class="flex gap-1 flex-1 overflow-x-auto" id="called-tags" style="scrollbar-width: none;"></div>
+                    <div class="flex gap-1 flex-1 overflow-x-auto" id="called-tags" style="scrollbar-width: none; flex-wrap: nowrap;"></div>
                     <button onclick="toggleVoice()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style="background: rgba(255,255,255,0.1);">
                         <svg id="voice-icon" class="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    </button>
+                    <button onclick="toggleMusic()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style="background: rgba(255,255,255,0.1);">
+                        <span id="music-icon" class="text-xs">🔇</span>
                     </button>
                 </div>
 
@@ -442,7 +445,7 @@
                     <p><span class="text-bingo-blue font-bold">3.</span> Numbers are called one at a time (e.g. B-7, I-22)</p>
                     <p><span class="text-bingo-purple font-bold">4.</span> Find the number on your cartela and tap to mark it</p>
                     <p><span class="text-bingo-teal font-bold">5.</span> Complete a row, column, or diagonal to win!</p>
-                    <p><span class="text-bingo-orange font-bold">6.</span> Prize = Stake x 15.2 (e.g., 10 ETB = 152 ETB)</p>
+                    <p><span class="text-bingo-orange font-bold">6.</span> Prize = Players × Stake × 7.5 (split among winners)</p>
                 </div>
             </div>
         </div>
@@ -568,6 +571,10 @@
                     <div class="bg-[#1E2340] border border-white/5 rounded-lg px-2 py-1 flex flex-col justify-center">
                         <span class="text-[9px] text-gray-500 uppercase leading-none">Stake</span>
                         <span id="cs-stake" class="text-[#FF8C00] font-bold leading-normal mt-0.5">10</span>
+                    </div>
+                    <div class="bg-[#1E2340] border border-white/5 rounded-lg px-2 py-1 flex flex-col justify-center">
+                        <span class="text-[9px] text-gray-500 uppercase leading-none">Derash</span>
+                        <span id="cs-derash" class="text-[#8B5CF6] font-bold leading-normal mt-0.5">75</span>
                     </div>
                 </div>
                 <div>

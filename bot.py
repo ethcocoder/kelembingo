@@ -221,8 +221,7 @@ async def handle_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
-        if update.callback_query.data == "bal_deposit":
-            return await _show_deposit_flow(update.callback_query, context)
+        return await _show_deposit_flow(update.callback_query, context)
     return await _show_deposit_flow_msg(update, context)
 
 
@@ -231,7 +230,7 @@ async def _show_deposit_flow_msg(update: Update, context: ContextTypes.DEFAULT_T
     u = await user_manager.get_user(uid)
     if not u:
         await update.effective_message.reply_text("Please /start first.", reply_markup=MAIN_KEYBOARD)
-        return AWAIT_PHOTO
+        return ConversationHandler.END
 
     # Check pending deposits limit
     pending = db.collection('deposits').where('userId', '==', str(uid)).where('status', '==', 'pending').get()
@@ -251,6 +250,10 @@ async def _show_deposit_flow_msg(update: Update, context: ContextTypes.DEFAULT_T
 
 async def _show_deposit_flow(query, context):
     uid = query.from_user.id
+    u = await user_manager.get_user(uid)
+    if not u:
+        await query.edit_message_text("Please /start first.")
+        return ConversationHandler.END
     pending = db.collection('deposits').where('userId', '==', str(uid)).where('status', '==', 'pending').get()
     if len(list(pending)) >= 3:
         await query.edit_message_text("⚠️ Too many pending deposits. Wait for processing.")
@@ -407,8 +410,7 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
-        if update.callback_query.data == "bal_withdraw":
-            return await _show_withdraw_flow(update.callback_query, context)
+        return await _show_withdraw_flow(update.callback_query, context)
     return await _show_withdraw_flow_msg(update, context)
 
 
@@ -1043,7 +1045,7 @@ def main():
         states={
             BONUS_CONFIRM: [CallbackQueryHandler(bonus_confirm, pattern="^bonus_")],
         },
-        fallbacks=[CommandHandler("start", start)],
+        fallbacks=[CommandHandler("start", start), MessageHandler(filters.Regex("^Cancel$"), cancel)],
     )
     app.add_handler(bonus_conv, group=6)
 

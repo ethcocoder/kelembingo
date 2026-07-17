@@ -1,4 +1,5 @@
 // ==================== AUDIO ====================
+var _lastNumberAudio = null;
 function getAudioCtx() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     return audioCtx;
@@ -10,8 +11,10 @@ function playNumberSound(num) {
     try {
         var letter = getNumberLetter(num);
         if (!letter) return;
-        var src = 'public/audio/' + letter + num + '.mp3';
+        if (_lastNumberAudio) { try { _lastNumberAudio.pause(); _lastNumberAudio.src = ''; } catch(e) {} }
+        var src = 'audio/' + letter + num + '.mp3';
         var audio = new Audio(src);
+        _lastNumberAudio = audio;
         audio.volume = masterVolume;
         audio.play().catch(function() {});
     } catch(e) {}
@@ -81,7 +84,7 @@ function setVolume(val) {
 function startBgMusic() {
     if (bgMusicAudio) return;
     try {
-        bgMusicAudio = new Audio('public/audio/bg_music.wav');
+        bgMusicAudio = new Audio('audio/bg_music.wav');
         bgMusicAudio.loop = true;
         bgMusicAudio.volume = masterVolume * 0.3;
         bgMusicAudio.play().catch(function() { bgMusicAudio = null; musicEnabled = false; });

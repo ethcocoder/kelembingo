@@ -146,7 +146,8 @@ async def _game_loop(round_id: str):
                     try:
                         await engine.end_round(round_id, [int(w) for w in winners])
                     except Exception as e:
-                        pass
+                        print(f"[GameLoop] Error distributing prizes for {round_id}: {e}")
+                        return  # Don't mark as processed if payout failed
                     db.collection('rounds').document(round_id).update({'payout_processed': True})
                 return
 
@@ -180,7 +181,23 @@ async def _game_loop(round_id: str):
                 return
 
             # Call the next number using the Smart Predictor engine
-            number = await engine.call_number(round_id)
+            try:
+                number = await engine.call_number(round_id)
+            except Exception as e:
+                print(f"Smart predictor error for {round_id}: {e}")
+                # Fallback to pure random choice if predictor crashes
+                import random
+                number = random.choice(available)
+                called = list(data.get('called_numbers', []))
+                called.append(number)
+                now = datetime.now(tz=timezone.utc)
+                db.collection('rounds').document(round_id).update({
+                    'called_numbers': called,
+                    'last_called_number': number,
+                    'last_called_at': now,
+                    'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
+                })
+                
             if number is None:
                 # Could not call number (none available, or round status changed)
                 await asyncio.sleep(NUMBER_CALL_INTERVAL)
@@ -883,6 +900,8 @@ if os.path.isdir(os.path.join(DASHBOARD_DIR, "css")):
     app.mount("/css", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "css")), name="css")
 if os.path.isdir(os.path.join(DASHBOARD_DIR, "js")):
     app.mount("/js", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "js")), name="js")
+if os.path.isdir(os.path.join(DASHBOARD_DIR, "public", "audio")):
+    app.mount("/audio", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "public", "audio")), name="audio")
 
 
 if __name__ == "__main__":

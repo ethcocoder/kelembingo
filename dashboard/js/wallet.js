@@ -16,10 +16,12 @@ async function submitWithdrawal() {
     const name = document.getElementById('withdrawTelebirrName').value.trim();
     if (!amount || amount < 10) { showToast('Min withdrawal: 10 ETB'); return; }
     if (!phone) { showToast('Enter phone number'); return; }
-    const bal = currentUser.balance || 0;
-    if (amount > bal) { showToast('Insufficient balance!'); return; }
     try {
-        await db.collection('users').doc(String(currentUser.id)).update({
+        const userRef = db.collection('users').doc(String(currentUser.id));
+        const snap = await userRef.get();
+        const bal = (snap.data().balance || 0);
+        if (amount > bal) { showToast('Insufficient balance!'); return; }
+        await userRef.update({
             balance: bal - amount,
             updated_at: firebase.firestore.FieldValue.serverTimestamp()
         });

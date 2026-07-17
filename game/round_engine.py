@@ -399,7 +399,11 @@ class RoundEngine:
 
         # Mark all players as not playing
         for uid_str in data.get('players', {}):
-            if int(uid_str) not in winner_ids:
+            try:
+                uid_int = int(uid_str)
+            except ValueError:
+                continue
+            if uid_int not in winner_ids:
                 user_ref = self.db.collection('users').document(uid_str)
                 user_doc = user_ref.get()
                 if user_doc.exists:
@@ -445,7 +449,7 @@ class RoundEngine:
     async def get_recent_rounds(self, limit: int = 20) -> List[dict]:
         """Get recent rounds."""
         docs = (self.rounds_ref
-                .order_by('created_at', direction=firestore.Query.DESCENDING)
+                .order_by('created_at', direction='DESCENDING')
                 .limit(limit)
                 .get())
         return [{'id': doc.id, **doc.to_dict()} for doc in docs]
