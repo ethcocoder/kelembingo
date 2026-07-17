@@ -9,64 +9,59 @@ async function playNow() {
 
     showLoading('Finding game...');
     try {
+        // Find current active round (selecting or playing)
         let roundSnap = await db.collection('rounds')
-            .where('status', '==', 'selecting')
+            .where('status', 'in', ['selecting', 'playing'])
             .orderBy('created_at', 'desc')
             .limit(1).get();
 
-        let roundData, roundId;
-        let createNew = false;
-        if (!roundSnap.empty) {
-            const doc = roundSnap.docs[0];
-            roundData = doc.data();
-            roundId = doc.id;
+        if (roundSnap.empty) {
+            hideLoading();
+            showToast('Waiting for the next round to start...');
+            // The backend monitor will automatically create the round shortly
+            return;
+        }
+
+        const doc = roundSnap.docs[0];
+        const roundData = doc.data();
+        const roundId = doc.id;
+        currentRoundId = roundId;
+
+        if (roundData.status === 'playing') {
+            // Already checking if they played
+            if (roundData.players && roundData.players[String(currentUser.id)]) {
+                hideLoading();
+                showToast('Rejoining current game!');
+                navigateTo('game');
+                await loadMyCartelas(roundData);
+                listenToRound(roundId);
+                return;
+            } else {
+                hideLoading();
+                showToast('Round in progress! Spectator mode.');
+                isSpectator = true;
+                navigateTo('game');
+                setupGameBoard();
+                listenToRound(roundId);
+                return;
+            }
+        } else {
+            // Selecting status
             if (roundData.players && roundData.players[String(currentUser.id)]) {
                 hideLoading();
                 showToast('You already joined this round!');
-                currentRoundId = roundId;
                 navigateTo('game');
                 await loadMyCartelas(roundData);
                 listenToRound(roundId);
                 return;
             }
-            const dl = roundData.selection_deadline;
-            if (dl) {
-                const dlMs = dl.toDate ? dl.toDate().getTime() : new Date(dl).getTime();
-                if (dlMs - Date.now() < 15000) {
-                    createNew = true;
-                }
-            }
-        } else {
-            createNew = true;
+            
+            hideLoading();
+            showCardSelection(roundId, roundData);
         }
-
-        if (createNew) {
-            const now = new Date();
-            const deadline = new Date(now.getTime() + SELECTION_SECONDS * 1000);
-            roundData = {
-                status: 'selecting',
-                stake: STAKE,
-                players: {},
-                player_count: 0,
-                taken_cartelas: [],
-                called_numbers: [],
-                winners: [],
-                prize_per_winner: 0,
-                admin_profit: 0,
-                selection_deadline: firebase.firestore.Timestamp.fromDate(deadline),
-                created_at: firebase.firestore.FieldValue.serverTimestamp(),
-                completed_at: null,
-            };
-            const ref = await db.collection('rounds').add(roundData);
-            roundId = ref.id;
-        }
-
-        currentRoundId = roundId;
-        hideLoading();
-        showCardSelection(roundId, roundData);
     } catch (err) {
         hideLoading();
-        console.error('Error finding/creating round:', err);
+        console.error('Error finding round:', err);
         showToast('Error: ' + err.message);
     }
 }
@@ -251,12 +246,12 @@ function updateSelectedInfo() {
     const btn = document.getElementById('cs-confirm-btn');
     if (count > 0) {
         info.classList.remove('hidden');
-        btn.classList.remove('hidden');
+        if(btn) btn.classList.add('hidden'); // explicitly keep hidden
         document.getElementById('cs-selected-count').textContent = count + '/' + MAX_CARTELAS;
         document.getElementById('cs-selected-total').textContent = (count * STAKE) + ' ETB';
     } else {
         info.classList.add('hidden');
-        btn.classList.add('hidden');
+        if(btn) btn.classList.add('hidden');
     }
 }
 

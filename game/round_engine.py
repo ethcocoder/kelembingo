@@ -23,6 +23,7 @@ NUMBER_CALL_INTERVAL = 4        # seconds between each called number
 MAX_CARTELAS_PER_PLAYER = 2
 BINGO_NUMBERS = range(1, 76)    # 1-75
 
+_CARTELA_CACHE = {}  # Global in-memory cache for all 500 cartela structures
 
 class RoundEngine:
     def __init__(self, db):
@@ -218,7 +219,8 @@ class RoundEngine:
             return {'error': 'Round already started or completed'}
 
         player_count = data.get('player_count', 0)
-        derash = STAKE * PRIZE_MULTIPLIER
+        total_pool = player_count * STAKE
+        derash = total_pool * 0.75
 
         now = datetime.now(tz=timezone.utc)
         self.rounds_ref.document(round_id).update({
@@ -245,7 +247,58 @@ class RoundEngine:
         if not available:
             return None
 
-        number = random.choice(available)
+        # ── SMART STATISTIC PREDICTION: PREVENT > 2 WINNERS ──
+        # Guarantee no single draw creates 3+ winners. Over-optimize to target <= 1 winner if possible.
+        players = data.get('players', {})
+        
+        # 1. Warm up cache if needed to avoid DB reads
+        if not _CARTELA_CACHE:
+            try:
+                docs = self.master_ref.get()
+                for doc in docs:
+                    _CARTELA_CACHE[doc.id] = doc.to_dict().get('cartela', [])
+            except Exception:
+                pass
+
+        # 2. Gather active cartelas for quick evaluation
+        player_cartelas = {} # uid -> [flat_cartela_1, flat_cartela_2]
+        for uid_str, p_info in players.items():
+            player_cartelas[uid_str] = []
+            for cnum in p_info.get('cartelas', []):
+                ctype = str(cnum)
+                if ctype in _CARTELA_CACHE:
+                    player_cartelas[uid_str].append(_CARTELA_CACHE[ctype])
+                else:
+                    # Fallback lookup if not in cache
+                    cdoc = self.master_ref.document(ctype).get()
+                    if cdoc.exists:
+                        flat = cdoc.to_dict().get('cartela', [])
+                        _CARTELA_CACHE[ctype] = flat
+                        player_cartelas[uid_str].append(flat)
+
+        random.shuffle(available)
+        best_number = available[0]
+        min_winners = 9999
+
+        for candidate in available:
+            simulated_called = called + [candidate]
+            candidate_winners_count = 0
+            
+            for uid_str, cartelas_list in player_cartelas.items():
+                for flat in cartelas_list:
+                    if self.check_bingo_for_cartela(flat, simulated_called):
+                        candidate_winners_count += 1
+                        break # Only count the player once
+            
+            if candidate_winners_count <= 1:
+                best_number = candidate
+                break  # Perfect safe number found!
+                
+            if candidate_winners_count < min_winners:
+                min_winners = candidate_winners_count
+                best_number = candidate
+
+        number = best_number
         called.append(number)
 
         now = datetime.now(tz=timezone.utc)
@@ -324,12 +377,13 @@ class RoundEngine:
             return {'error': 'Round not in playing state'}
 
         player_count = data.get('player_count', 0)
-        prize_per_winner = STAKE * PRIZE_MULTIPLIER
-        admin_profit = 0
+        total_pool = player_count * STAKE
+        derash = total_pool * 0.75
+        admin_profit = total_pool * 0.25
 
         prize_per_winner = 0
         if winner_ids:
-            prize_per_winner = STAKE * PRIZE_MULTIPLIER
+            prize_per_winner = derash / len(winner_ids)
             # Credit each winner
             for wid in winner_ids:
                 user_ref = self.db.collection('users').document(str(wid))

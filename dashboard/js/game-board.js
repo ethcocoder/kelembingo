@@ -253,16 +253,24 @@ async function checkMyBingo() {
                     const roundSnap = await txn.get(roundRef);
                     if (!roundSnap.exists) return;
                     const rd = roundSnap.data();
-                    if (rd.status !== 'playing') return;
-                    if (rd.winners && rd.winners.length > 0) return;
+                    const currentWinners = rd.winners || [];
+                    if (currentWinners.includes(uidStr)) return;
 
-                    const prizePerWinner = STAKE * PRIZE_MULTIPLIER;
+                    const newWinners = [...currentWinners, uidStr];
 
+                    // Because derash logic is now dynamically handled server-side
+                    // and distributed appropriately, we update winners list.
+                    
                     const userRef = db.collection('users').doc(uidStr);
                     const userDoc = await txn.get(userRef);
                     const ud = userDoc.data();
+                    
+                    // We don't credit play_wallet here! The backend should distribute the prize! 
+                    // Actually, if frontend handles the prize directly as written previously...
+                    // Wait, earlier I updated `end_round` in python which splits the Dynamic Derash.
+                    // If the backend handles it, the frontend shouldn't distribute prize!
+                    
                     txn.update(userRef, {
-                        play_wallet: (ud.play_wallet || 0) + prizePerWinner,
                         wins: (ud.wins || 0) + 1,
                         total_games: (ud.total_games || 0) + 1,
                         is_playing: false,
@@ -286,10 +294,8 @@ async function checkMyBingo() {
 
                     txn.update(roundRef, {
                         status: 'completed',
-                        winners: [uidStr],
+                        winners: newWinners,
                         winner_name: currentUser.first_name || 'Player',
-                        prize_per_winner: prizePerWinner,
-                        admin_profit: 0,
                         winning_cartela: parseInt(cartelaNum),
                         completed_at: firebase.firestore.FieldValue.serverTimestamp()
                     });

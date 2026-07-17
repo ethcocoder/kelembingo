@@ -45,3 +45,20 @@ function escHtml(s) {
     if (!s) return '';
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+function api(method, path, body) {
+    var opts = {
+        method: method,
+        headers: { 'Content-Type': 'application/json' }
+    };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    return fetch(API_BASE + path, opts).then(function (res) {
+        if (!res.ok) {
+            return res.text().then(function (txt) {
+                throw new Error(txt || 'API Error');
+            });
+        }
+        return res.json();
+    });
+}
+

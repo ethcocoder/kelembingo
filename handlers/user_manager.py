@@ -121,11 +121,20 @@ class UserManager:
         user = await self.get_user(user_id)
         if not user:
             return False
+        
+        is_already_registered = bool(user.get('registered')) and bool(user.get('phone'))
+        play_wallet = user.get('play_wallet', 0)
+        
+        # Give 10 ETB welcome bonus on first time registration
+        if not is_already_registered:
+            play_wallet += 10
+            
         self.users_ref.document(str(user_id)).update({
             'first_name': name,
             'phone': phone,
             'telebirr_name': telebirr_name,
             'registered': True,
+            'play_wallet': play_wallet,
             'updated_at': datetime.now(tz=timezone.utc),
         })
         return True

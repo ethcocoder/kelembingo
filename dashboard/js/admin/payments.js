@@ -56,7 +56,10 @@ function renderPayments() {
                     '<p class="text-[10px] text-gray-500 font-semibold">OCR Parsed (' + confPct + '% confidence)</p>' +
                     (ocr.status ? '<p class="text-[10px] text-gray-400">Status: <span class="' + (ocr.status === 'success' ? 'text-[#10B981]' : 'text-red-400') + '">' + escHtml(ocr.status) + '</span></p>' : '') +
                     (ocr.amount ? '<p class="text-[10px] text-gray-400">Amount: ' + escHtml(String(ocr.amount)) + ' ETB</p>' : '') +
+                    (ocr.transactionDate ? '<p class="text-[10px] text-gray-400">Date: ' + escHtml(ocr.transactionDate) + '</p>' : '') +
                     (ocr.transactionRef ? '<p class="text-[10px] text-gray-400">Ref: <code>' + escHtml(ocr.transactionRef) + '</code></p>' : '') +
+                    (ocr.receiverName ? '<p class="text-[10px] text-gray-400">Receiver: ' + escHtml(ocr.receiverName) + '</p>' : '') +
+                    (ocr.transactionType ? '<p class="text-[10px] text-gray-400">Type: ' + escHtml(ocr.transactionType) + '</p>' : '') +
                     '</div>';
             }
             html += '<div class="glass rounded-xl p-4 mb-3 anim-slide border border-yellow-500/20">' +

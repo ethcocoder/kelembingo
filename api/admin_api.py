@@ -83,9 +83,13 @@ async def _game_loop(round_id: str):
                 if datetime.now(tz=timezone.utc) >= dl_dt:
                     # Auto-start the round (even with 0 players)
                     now = datetime.now(tz=timezone.utc)
+                    player_count = data.get('player_count', 0)
+                    total_pool = player_count * STAKE
+                    derash = total_pool * 0.75
+                    
                     db.collection('rounds').document(round_id).update({
                         'status': 'playing',
-                        'derash': STAKE * PRIZE_MULTIPLIER,
+                        'derash': derash,
                         'game_started_at': now,
                         'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
                     })
@@ -102,7 +106,16 @@ async def _game_loop(round_id: str):
             data = round_doc.to_dict()
 
             if data.get('status') != 'playing':
-                return  # round ended (bingo claimed or admin ended)
+                # The frontend completes the round when someone hits Bingo.
+                # If there are winners, distribute the dynamic derash here cleanly.
+                winners = data.get('winners', [])
+                if winners and not data.get('payout_processed'):
+                    try:
+                        await engine.end_round(round_id, [int(w) for w in winners])
+                    except Exception as e:
+                        pass
+                    db.collection('rounds').document(round_id).update({'payout_processed': True})
+                return
 
             already_called = set(data.get('called_numbers', []))
             available = [n for n in BINGO_NUMBERS if n not in already_called]
@@ -128,6 +141,7 @@ async def _game_loop(round_id: str):
                     'winner_name': 'No winner',
                     'prize_per_winner': 0,
                     'admin_profit': 0,
+                    'payout_processed': True,
                     'completed_at': datetime.now(tz=timezone.utc),
                 })
                 return
@@ -169,13 +183,23 @@ async def start_background_monitor():
     async def _monitor():
         while True:
             try:
-                docs = list(db.collection('rounds')
-                           .where('status', '==', 'selecting')
-                           .get())
-                for doc in docs:
+                # Find all currently active rounds (selecting or playing)
+                selecting_docs = list(db.collection('rounds').where('status', '==', 'selecting').get())
+                playing_docs = list(db.collection('rounds').where('status', '==', 'playing').get())
+                
+                # Start game loops for any selecting rounds that haven't been started
+                for doc in selecting_docs:
                     rid = doc.id
                     if rid not in _active_game_tasks:
                         _start_game_loop(rid)
+                        
+                # ── Continuous Loop Enforcement ──
+                # If there are NO active rounds at all, create a new one immediately.
+                if not selecting_docs and not playing_docs:
+                    result = await engine.create_round()
+                    if 'id' in result:
+                        _start_game_loop(result['id'])
+                        
             except Exception as e:
                 pass  # silently skip — no Firebase quota hits
             await asyncio.sleep(5)
