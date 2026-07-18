@@ -11,6 +11,7 @@ var sectionTitles = {
 
 function switchSection(name) {
     currentSection = name;
+    window.location.hash = name;
     document.querySelectorAll('.section').forEach(function (s) { s.classList.remove('active'); });
     var sec = document.getElementById('section-' + name);
     if (sec) sec.classList.add('active');
@@ -30,6 +31,21 @@ function switchSection(name) {
     if (name === 'cartelas') loadCartelaPool();
     if (name === 'payments') loadPayments();
 }
+
+// Restore section from URL hash on page load
+(function() {
+    var hash = window.location.hash.replace('#', '');
+    if (hash && sectionTitles[hash]) {
+        switchSection(hash);
+    }
+})();
+
+window.addEventListener('hashchange', function() {
+    var hash = window.location.hash.replace('#', '');
+    if (hash && sectionTitles[hash] && hash !== currentSection) {
+        switchSection(hash);
+    }
+});
 
 // ==================== MODALS ====================
 function openModal(id) {
