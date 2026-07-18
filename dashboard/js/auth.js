@@ -53,7 +53,7 @@ async function initUser() {
         updateAllDisplays();
         listenToUserData();
         startStatsListener();
-        if (!currentUser.phone) showRegistration();
+        if (!currentUser.phone && !currentUser.registered) showRegistration();
     } catch (err) {
         console.error('Error initializing user:', err);
         var ug3 = document.getElementById('user-greeting');
