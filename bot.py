@@ -33,6 +33,7 @@ ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 REG_NAME, REG_CONTACT = 0, 1
 AWAIT_PHOTO = 3
 DEPOSIT_AMOUNT, DEPOSIT_TELEBIRR_NAME = 11, 12
+DEPOSIT_CONFIRM = 14
 WITHDRAW_AMOUNT, WITHDRAW_TELEBIRR_NAME = 4, 13
 TRANSFER_ID, TRANSFER_AMOUNT, TRANSFER_CONFIRM = 6, 7, 8
 BONUS_CONFIRM = 9
@@ -351,30 +352,77 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # OCR extraction
     extracted = await asyncio.to_thread(_extract_text_from_image, bytes(image_bytes))
+    ocr_amount = extracted.get('amount') or 0
 
+    # Store screenshot data in context for confirmation step
+    context.user_data['screenshot_data'] = {
+        'image_bytes': bytes(image_bytes),
+        'image_hash': image_hash,
+        'image_file_id': photo[-1].file_id,
+        'extracted': extracted,
+        'ocr_amount': ocr_amount,
+    }
+
+    # Ask user to confirm the amount
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Yes, correct", callback_data="deposit_confirm_yes"),
+         InlineKeyboardButton("❌ No, wrong", callback_data="deposit_confirm_no")],
+    ])
+
+    if ocr_amount > 0:
+        msg = f"💵 We detected *{ocr_amount} ETB* on your screenshot.\n\nIs this correct?"
+    else:
+        msg = "❓ We couldn't detect the amount on your screenshot.\n\nDo you want to try again with another screenshot?"
+
+    await update.effective_message.reply_text(msg, reply_markup=kb, parse_mode='Markdown')
+    return DEPOSIT_CONFIRM
+
+
+async def confirm_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    uid = query.from_user.id
+
+    if query.data == "deposit_confirm_no":
+        await query.edit_message_text("📸 Please send the correct screenshot.")
+        return AWAIT_PHOTO
+
+    # YES — submit the deposit
+    screenshot_data = context.user_data.get('screenshot_data')
+    if not screenshot_data:
+        await query.edit_message_text("❌ Session expired. Please start over with /deposit")
+        await user_manager.set_awaiting_screenshot(uid, False)
+        return ConversationHandler.END
+
+    extracted = screenshot_data['extracted']
+    image_hash = screenshot_data['image_hash']
+    ocr_amount = screenshot_data['ocr_amount']
+    image_file_id = screenshot_data['image_file_id']
+
+    u = await user_manager.get_user(uid)
     txn_id = extracted.get('transaction_ref') or f"IMG-{image_hash[:12]}"
-    amount = context.user_data.get('deposit_amount', extracted.get('amount') or 0)
-    sender_name = extracted.get('receiver_name') or extracted.get('sender_name') or u.get('first_name', 'Unknown')
+    sender_name = extracted.get('receiver_name') or extracted.get('sender_name') or (u.get('first_name', 'Unknown') if u else 'Unknown')
+    amount = ocr_amount
 
     # Check duplicate transaction ID
     if txn_id and not txn_id.startswith("IMG-"):
         dup = db.collection('deposits').where('transactionId', '==', txn_id).limit(1).get()
         if dup:
-            await update.effective_message.reply_text("❌ This transaction was already submitted.", reply_markup=MAIN_KEYBOARD)
+            await query.edit_message_text("❌ This transaction was already submitted.", reply_markup=MAIN_KEYBOARD)
             await user_manager.set_awaiting_screenshot(uid, False)
             return ConversationHandler.END
 
     deposit_data = {
         'userId': str(uid),
-        'username': update.effective_user.username or '',
-        'firstName': update.effective_user.first_name or '',
+        'username': query.from_user.username or '',
+        'firstName': query.from_user.first_name or '',
         'telebirrName': context.user_data.get('telebirr_name', ''),
         'amount': amount,
         'transactionId': txn_id,
         'senderName': sender_name,
         'status': 'pending',
         'imageHash': image_hash,
-        'imageFileId': photo[-1].file_id,
+        'imageFileId': image_file_id,
         'ocr': {
             'status': extracted.get('status', 'unknown'),
             'amount': extracted.get('amount', 0),
@@ -395,22 +443,22 @@ async def handle_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     deposit_id = deposit_ref.id
 
     await user_manager.set_awaiting_screenshot(uid, False)
+    context.user_data.pop('screenshot_data', None)
 
     ocr = deposit_data['ocr']
-    amount_text = f"{amount} ETB" if amount else "not detected"
     status_icon = "✅" if ocr['status'] == 'success' else "❌" if ocr['status'] == 'failed' else "❓"
     date_text = ocr['transactionDate'] or "not detected"
     ref_text = txn_id if not txn_id.startswith("IMG-") else "not detected"
 
-    await update.effective_message.reply_text(
+    await query.edit_message_text(
         f"✅ Deposit request submitted!\n\n"
-        f"💵 Amount: {amount_text}\n"
+        f"💵 Amount: {amount} ETB\n"
         f"{status_icon} Status: {ocr['status']}\n"
         f"👤 Receiver: {sender_name}\n"
         f"🔖 Reference: {ref_text}\n"
         f"📅 Date: {date_text}\n"
         f"🆔 `{deposit_id}`",
-        reply_markup=MAIN_KEYBOARD, parse_mode='Markdown',
+        parse_mode='Markdown',
     )
 
     await _notify_admin_deposit(deposit_data, deposit_id, context)
@@ -774,8 +822,17 @@ async def _notify_admin_deposit(deposit_data, deposit_id, context):
             f"🔖 *Reference:* {ref_text}\n"
             f"👤 *Receiver:* {receiver_text}\n"
             f"📋 *Type:* {type_text}\n"
-            f"📊 *Confidence:* {int(confidence * 100)}%\n\n"
-            f"🆔 `{deposit_id}`\n"
+            f"📊 *Confidence:* {int(confidence * 100)}%"
+        )
+        if deposit_data.get('amountMismatch'):
+            text += (
+                f"\n\n🚨 *AMOUNT MISMATCH* 🚨\n"
+                f"User entered: {deposit_data.get('userDeclaredAmount', 0)} ETB\n"
+                f"Screenshot shows: {ocr.get('amount', 0)} ETB\n"
+                f"⚠️ Review carefully before approving!"
+            )
+        text += (
+            f"\n\n🆔 `{deposit_id}`\n"
             f"🕐 {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
         )
         kb = InlineKeyboardMarkup([
@@ -880,6 +937,7 @@ def _extract_text_from_image(image_bytes: bytes) -> dict:
     # ── 2. Amount ──
     for pattern in [
         r'(-?[\d,]+\.?\d*)\s*(?:ETB|ብር)',
+        r'(-?[\d,]+\.?\d*)\s*\(',                           # -550.00 (nc) pattern
         r'(?:Amount|Total|ETB|መጠን|ብር)[:\s]*(-?[\d,]+\.?\d*)',
         r'(-[\d,]+\.?\d*)',
     ]:
@@ -894,6 +952,7 @@ def _extract_text_from_image(image_bytes: bytes) -> dict:
     # ── 3. Transaction Date (የግብይቱ ቀን) ──
     for pattern in [
         r'የግብይቱ\s*ቀን[:\s]*(\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})',
+        r'PIN\s*LT\s*LH[:\s]*(\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})',  # garbled OCR
         r'(?:Date|Time|Transaction\s*Date)[:\s]*(\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})',
         r'(\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})',
     ]:
@@ -905,6 +964,7 @@ def _extract_text_from_image(image_bytes: bytes) -> dict:
     # ── 4. Transaction Type (የግብይቱ ዓይነት) ──
     for pattern in [
         r'የግብይቱ\s*ዓይነት[:\s]*([\w\s\u1200-\u137F]+)',
+        r'PINLt\s*ALI[:\s]*([\w\s\u1200-\u137F]+)',           # garbled OCR
         r'(?:Type|Transaction\s*Type)[:\s]*([\w\s]+)',
     ]:
         m = re.search(pattern, raw_text, re.IGNORECASE)
@@ -915,6 +975,7 @@ def _extract_text_from_image(image_bytes: bytes) -> dict:
     # ── 5. Receiver Name (ለምፅብ ስም / ለ接收方) ──
     for pattern in [
         r'ለምፅብ\s*ስም[:\s]*([A-Za-z\s]+)',
+        r'WMNLt\s*OL[:\s]*([A-Za-z\s]+)',                     # garbled OCR
         r'ለ接收方\s*ስም[:\s]*([A-Za-z\s]+)',
         r'(?:Receiver|To|Beneficiary)[:\s]*([A-Za-z\s]+)',
     ]:
@@ -928,6 +989,7 @@ def _extract_text_from_image(image_bytes: bytes) -> dict:
     # ── 6. Transaction Reference (የግብይት ማጣቀሻ) ──
     for pattern in [
         r'የግብይት\s*ማጣቀሻ[:\s]*([A-Za-z0-9]{8,12})',
+        r'PINLTE\s*RNC[:\s]*([A-Za-z0-9]{8,12})',             # garbled OCR
         r'(?:Transaction\s*Ref|TXN|Ref|Reference)[:\s]*([A-Za-z0-9]{8,12})',
         r'\b([A-Z0-9]{8,12})\b',
     ]:
@@ -1151,6 +1213,7 @@ def main():
             DEPOSIT_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)],
             DEPOSIT_TELEBIRR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_telebirr_name)],
             AWAIT_PHOTO: [MessageHandler(filters.PHOTO, handle_screenshot)],
+            DEPOSIT_CONFIRM: [CallbackQueryHandler(confirm_deposit, pattern="^deposit_confirm_")],
         },
         fallbacks=[
             CommandHandler("start", start),
