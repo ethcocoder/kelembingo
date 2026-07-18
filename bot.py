@@ -243,10 +243,10 @@ async def _show_deposit_flow_msg(update: Update, context: ContextTypes.DEFAULT_T
         return ConversationHandler.END
 
     await update.effective_message.reply_text(
-        "💵 *Deposit via TeleBirr*\n\nHow much ETB do you want to deposit? (Minimum 10)",
-        parse_mode='Markdown',
+        "💰 Please enter your TeleBirr name\n"
+        "(The name registered on your TeleBirr account):"
     )
-    return DEPOSIT_AMOUNT
+    return DEPOSIT_TELEBIRR_NAME
 
 
 async def _show_deposit_flow(query, context):
@@ -268,16 +268,16 @@ async def _show_deposit_flow(query, context):
 
     try:
         await query.edit_message_text(
-            "💵 *Deposit via TeleBirr*\n\nHow much ETB do you want to deposit? (Minimum 10)",
-            parse_mode='Markdown',
+            "💰 Please enter your TeleBirr name\n"
+            "(The name registered on your TeleBirr account):"
         )
     except Exception:
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text="💵 *Deposit via TeleBirr*\n\nHow much ETB do you want to deposit? (Minimum 10)",
-            parse_mode='Markdown',
+            text="💰 Please enter your TeleBirr name\n"
+            "(The name registered on your TeleBirr account):"
         )
-    return DEPOSIT_AMOUNT
+    return DEPOSIT_TELEBIRR_NAME
 
 
 async def deposit_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -302,13 +302,9 @@ async def deposit_telebirr_name(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['telebirr_name'] = update.message.text.strip()
     uid = update.effective_user.id
     await user_manager.set_awaiting_screenshot(uid, True)
-    amount = context.user_data.get('deposit_amount', 0)
     await update.effective_message.reply_text(
-        f"💵 *Deposit {amount} ETB via TeleBirr*\n\n"
-        f"1. Send *{TELEBIRR_NUMBER}* via TeleBirr\n"
-        f"2. Take a screenshot of the confirmation\n"
-        f"3. Send the screenshot here\n\n"
-        f"⏳ Waiting for your screenshot...",
+        f"📸 Please send your TeleBirr payment screenshot.\n\n"
+        f"Send to *{TELEBIRR_NUMBER}* first, then send the confirmation screenshot here.",
         parse_mode='Markdown',
     )
     return AWAIT_PHOTO
@@ -1216,7 +1212,6 @@ def main():
         ],
         per_message=False,
         states={
-            DEPOSIT_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_amount)],
             DEPOSIT_TELEBIRR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, deposit_telebirr_name)],
             AWAIT_PHOTO: [MessageHandler(filters.PHOTO, handle_screenshot)],
             DEPOSIT_CONFIRM: [CallbackQueryHandler(confirm_deposit, pattern="^deposit_confirm_")],
