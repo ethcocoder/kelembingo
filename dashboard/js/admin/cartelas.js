@@ -22,7 +22,14 @@ async function generateCartelaPool() {
     if (!confirm('Generate the 500 fixed cartelas? This will call the API.')) return;
     try {
         const res = await fetch(API_BASE + '/api/cartelas/generate', { method: 'POST' });
-        const data = await res.json();
+        if (!res.ok) {
+            var errText = '';
+            try { errText = await res.text(); } catch (_) {}
+            throw new Error(errText || ('Server error: ' + res.status));
+        }
+        var raw = await res.text();
+        if (!raw) throw new Error('Empty response from server');
+        var data = JSON.parse(raw);
         alert(data.status === 'already_exists' ? 'Cartelas already exist.' : 'Generated 500 cartelas successfully!');
         // onSnapshot listener will auto-update the UI
     } catch (e) {

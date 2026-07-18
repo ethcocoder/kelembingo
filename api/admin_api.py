@@ -261,8 +261,8 @@ async def generate_cartelas():
     """Generate 500 fixed cartelas (idempotent)."""
     try:
         result = await engine.generate_all_cartelas()
-        # Broadcast cartela pool update to all admin dashboards
-        await broadcast_event('cartelas_master', 'list')
+        # Broadcast cartela pool update to all admin dashboards (fire-and-forget)
+        asyncio.create_task(broadcast_event('cartelas_master', 'list'))
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
