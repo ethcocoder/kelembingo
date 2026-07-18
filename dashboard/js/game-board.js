@@ -4,61 +4,130 @@ function setupGameBoard() {
     calledNumbers = new Set();
     stopGameCountdown();
 
-    document.getElementById('game-id-display').textContent = '#' + (currentRoundId || '---').substring(0, 6);
-    document.getElementById('game-stake').textContent = STAKE + ' ETB';
-    document.getElementById('game-called-count').textContent = '0';
-    document.getElementById('game-timer').textContent = '--';
-    document.getElementById('game-players').textContent = '...';
-    document.getElementById('game-derash').textContent = '--';
-    document.getElementById('game-countdown').classList.add('hidden');
+    var el;
+    if (el = document.getElementById('game-id-display')) el.textContent = '#' + (currentRoundId || '---').substring(0, 6);
+    if (el = document.getElementById('game-stake')) el.textContent = STAKE + ' ETB';
+    if (el = document.getElementById('game-called-count')) el.textContent = '0';
+    if (el = document.getElementById('game-timer')) el.textContent = '--';
+    if (el = document.getElementById('game-players')) el.textContent = '...';
+    if (el = document.getElementById('game-derash')) el.textContent = '--';
+    if (el = document.getElementById('game-countdown')) el.classList.add('hidden');
 
     // Show/hide spectator message vs cartela area
-    const spectatorMsg = document.getElementById('spectator-message');
-    const cartelaArea = document.getElementById('cartela-area');
-    const wrap1 = document.getElementById('cartela-wrap-1');
-    const wrap2 = document.getElementById('cartela-wrap-2');
+    var spectatorMsg = document.getElementById('spectator-message');
+    var cartelaArea = document.getElementById('cartela-area');
+    var wrap1 = document.getElementById('cartela-wrap-1');
+    var wrap2 = document.getElementById('cartela-wrap-2');
 
-    if (nums.length === 0 || isSpectator) {
-        spectatorMsg.classList.remove('hidden');
-        cartelaArea.classList.add('hidden');
-    } else {
-        spectatorMsg.classList.add('hidden');
-        cartelaArea.classList.remove('hidden');
+    if (spectatorMsg && cartelaArea) {
+        if (nums.length === 0 || isSpectator) {
+            spectatorMsg.classList.remove('hidden');
+            cartelaArea.classList.add('hidden');
+        } else {
+            spectatorMsg.classList.add('hidden');
+            cartelaArea.classList.remove('hidden');
+        }
     }
 
     buildMasterGrid();
 
     // Reset number announce
-    document.getElementById('number-announce').classList.add('hidden');
-    document.getElementById('number-waiting').classList.remove('hidden');
+    var numAnnounce = document.getElementById('number-announce');
+    var numWaiting = document.getElementById('number-waiting');
+    if (numAnnounce) numAnnounce.classList.add('hidden');
+    if (numWaiting) numWaiting.classList.remove('hidden');
 
-    if (nums.length > 0) {
-        wrap1.classList.remove('hidden');
-        document.getElementById('cartela-number-1').textContent = nums[0];
-        buildCartelaGrid('cartela-grid-1', myCartelas[nums[0]]);
-    } else {
-        wrap1.classList.add('hidden');
+    if (wrap1) {
+        if (nums.length > 0) {
+            wrap1.classList.remove('hidden');
+            var cn1 = document.getElementById('cartela-number-1');
+            if (cn1) cn1.textContent = nums[0];
+            buildCartelaGrid('cartela-grid-1', myCartelas[nums[0]]);
+        } else {
+            wrap1.classList.add('hidden');
+        }
     }
-    if (nums.length >= 2) {
-        wrap2.classList.remove('hidden');
-        document.getElementById('cartela-number-2').textContent = nums[1];
-        buildCartelaGrid('cartela-grid-2', myCartelas[nums[1]]);
-    } else {
-        wrap2.classList.add('hidden');
+    if (wrap2) {
+        if (nums.length >= 2) {
+            wrap2.classList.remove('hidden');
+            var cn2 = document.getElementById('cartela-number-2');
+            if (cn2) cn2.textContent = nums[1];
+            buildCartelaGrid('cartela-grid-2', myCartelas[nums[1]]);
+        } else {
+            wrap2.classList.add('hidden');
+        }
     }
 
-    document.getElementById('called-tags').innerHTML = '';
+    var calledTags = document.getElementById('called-tags');
+    if (calledTags) calledTags.innerHTML = '';
+}
+
+// ==================== GAME COUNTDOWN ====================
+function startGameCountdown(nextMs) {
+    stopGameCountdown();
+    gameCountdownInterval = setInterval(function() {
+        var remaining = Math.max(0, Math.ceil((nextMs - serverNow()) / 1000));
+        var timerEl = document.getElementById('game-timer');
+        if (timerEl) {
+            timerEl.textContent = remaining > 0 ? remaining + 's' : 'GO!';
+            if (remaining <= 3 && remaining > 0) {
+                timerEl.style.color = '#EF4444';
+                timerEl.style.fontWeight = '900';
+            } else {
+                timerEl.style.color = '';
+                timerEl.style.fontWeight = '';
+            }
+        }
+        if (remaining <= 0) {
+            stopGameCountdown();
+        }
+    }, 200);
+}
+
+function stopGameCountdown() {
+    if (gameCountdownInterval) {
+        clearInterval(gameCountdownInterval);
+        gameCountdownInterval = null;
+    }
+}
+
+// ==================== SELECTION COUNTDOWN ====================
+function startSelectionCountdown(deadlineMs) {
+    stopSelectionCountdown();
+    selectionCountdownInterval = setInterval(function() {
+        var remaining = Math.max(0, Math.ceil((deadlineMs - serverNow()) / 1000));
+        var el = document.getElementById('cs-timer');
+        if (el) el.textContent = remaining + 's';
+        var bar = document.getElementById('cs-timer-bar');
+        if (bar) {
+            var pct = Math.max(0, (remaining / SELECTION_DURATION) * 100);
+            bar.style.width = pct + '%';
+            if (remaining <= 10) {
+                bar.style.background = 'linear-gradient(90deg, #EF4444, #F87171)';
+            }
+        }
+        if (remaining <= 0) {
+            stopSelectionCountdown();
+        }
+    }, 200);
+}
+
+function stopSelectionCountdown() {
+    if (selectionCountdownInterval) {
+        clearInterval(selectionCountdownInterval);
+        selectionCountdownInterval = null;
+    }
 }
 
 function buildMasterGrid() {
-    const grid = document.getElementById('master-grid');
+    var grid = document.getElementById('master-grid');
+    if (!grid) return;
     grid.innerHTML = '';
-    const letters = ['b', 'i', 'n', 'g', 'o'];
-    // Arrange column-wise: B(1-15), I(16-30), N(31-45), G(46-60), O(61-75)
-    for (let row = 0; row < 15; row++) {
-        for (let col = 0; col < 5; col++) {
-            const num = col * 15 + row + 1;
-            const cell = document.createElement('div');
+    var letters = ['b', 'i', 'n', 'g', 'o'];
+    for (var row = 0; row < 15; row++) {
+        for (var col = 0; col < 5; col++) {
+            var num = col * 15 + row + 1;
+            var cell = document.createElement('div');
             cell.className = 'master-cell letter-' + letters[col] + ' text-center rounded font-semibold transition-all flex items-center justify-center';
             cell.textContent = num;
             cell.id = 'master-' + num;
@@ -68,12 +137,13 @@ function buildMasterGrid() {
 }
 
 function buildCartelaGrid(gridId, flat) {
-    const grid = document.getElementById(gridId);
+    var grid = document.getElementById(gridId);
+    if (!grid) return;
     grid.innerHTML = '';
     if (!flat || flat.length < 25) return;
-    for (let i = 0; i < 25; i++) {
-        const num = flat[i];
-        const cell = document.createElement('div');
+    for (var i = 0; i < 25; i++) {
+        var num = flat[i];
+        var cell = document.createElement('div');
         cell.className = 'cartela-cell text-[11px] font-bold text-center py-2 rounded cursor-pointer transition-all';
         cell.dataset.num = num;
         if (num === 0) {
@@ -85,7 +155,7 @@ function buildCartelaGrid(gridId, flat) {
             if (calledNumbers.has(num)) {
                 markCartelaCell(cell, num);
             }
-            cell.onclick = () => manualMark(cell, num);
+            cell.onclick = (function(c, n) { return function() { manualMark(c, n); }; })(cell, num);
         }
         grid.appendChild(cell);
     }
@@ -97,7 +167,7 @@ function markCartelaCell(cell, num) {
     cell.style.color = '#fff';
     cell.style.transform = 'scale(1.05)';
     cell.style.boxShadow = '0 0 8px rgba(16,185,129,0.3)';
-    setTimeout(() => { cell.style.transform = ''; }, 200);
+    setTimeout(function() { cell.style.transform = ''; }, 200);
 }
 
 function manualMark(cell, num) {
@@ -111,15 +181,15 @@ function manualMark(cell, num) {
 }
 
 function highlightMasterNumber(num, isLast) {
-    const cell = document.getElementById('master-' + num);
+    var cell = document.getElementById('master-' + num);
     if (!cell) return;
-    const letter = getNumberLetter(num);
-    const color = getLetterColor(letter);
+    var letter = getNumberLetter(num);
+    var color = getLetterColor(letter);
     cell.style.backgroundColor = color;
     cell.style.color = '#fff';
     cell.classList.add('called');
     if (isLast) {
-        document.querySelectorAll('.master-cell.last-called').forEach(el => {
+        document.querySelectorAll('.master-cell.last-called').forEach(function(el) {
             el.classList.remove('last-called');
         });
         cell.classList.add('last-called');
@@ -127,11 +197,11 @@ function highlightMasterNumber(num, isLast) {
 }
 
 function addCalledNumberTag(num) {
-    const strip = document.getElementById('called-tags');
+    var strip = document.getElementById('called-tags');
     if (!strip) return;
-    const letter = getNumberLetter(num);
-    const letterLower = letter.toLowerCase();
-    const el = document.createElement('span');
+    var letter = getNumberLetter(num);
+    var letterLower = letter.toLowerCase();
+    var el = document.createElement('span');
     el.className = 'called-tag tag-' + letterLower;
     el.innerHTML = '<div class="tag-letter" style="color:inherit">' + letter + '</div>' +
                    '<div class="tag-number">' + num + '</div>';
@@ -140,11 +210,11 @@ function addCalledNumberTag(num) {
 
 function autoMarkAllCartelas(num) {
     if (!autoMarkEnabled) return;
-    const gridIds = ['cartela-grid-1', 'cartela-grid-2'];
-    for (const gridId of gridIds) {
-        const grid = document.getElementById(gridId);
+    var gridIds = ['cartela-grid-1', 'cartela-grid-2'];
+    for (var gi = 0; gi < gridIds.length; gi++) {
+        var grid = document.getElementById(gridIds[gi]);
         if (!grid) continue;
-        grid.querySelectorAll('.cartela-cell').forEach(cell => {
+        grid.querySelectorAll('.cartela-cell').forEach(function(cell) {
             if (parseInt(cell.dataset.num) === num && !cell.classList.contains('marked')) {
                 markCartelaCell(cell, num);
             }
@@ -154,39 +224,43 @@ function autoMarkAllCartelas(num) {
 
 function toggleAutoMark() {
     autoMarkEnabled = !autoMarkEnabled;
-    const toggle = document.getElementById('auto-toggle');
-    toggle.classList.toggle('on', autoMarkEnabled);
+    var toggle = document.getElementById('auto-toggle');
+    if (toggle) toggle.classList.toggle('on', autoMarkEnabled);
     showToast(autoMarkEnabled ? 'Auto-mark ON' : 'Auto-mark OFF');
     if (autoMarkEnabled) {
-        calledNumbers.forEach(num => autoMarkAllCartelas(num));
+        calledNumbers.forEach(function(num) { autoMarkAllCartelas(num); });
     }
 }
 
 // ==================== LISTEN TO ROUND (real-time) ====================
 function listenToRound(roundId) {
     if (roundUnsubscribe) roundUnsubscribe();
-    let prevCalledCount = calledNumbers.size;
+    var prevCalledCount = calledNumbers.size;
 
-    roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(snap => {
+    roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(function(snap) {
         if (!snap.exists) return;
-        const data = snap.data();
+        var data = snap.data();
 
-        const playerCount = data.player_count || 0;
-        // Derash = player_count * stake * 0.75 (total pool for winners)
-        const derash = Math.round(playerCount * STAKE * 0.75);
-        document.getElementById('game-players').textContent = playerCount;
-        document.getElementById('game-derash').textContent = derash + ' ETB';
-        document.getElementById('game-called-count').textContent = (data.called_numbers || []).length;
+        var playerCount = data.player_count || 0;
+        var derash = Math.round(playerCount * STAKE * 0.75);
+        var el;
+        if (el = document.getElementById('game-players')) el.textContent = playerCount;
+        if (el = document.getElementById('game-derash')) el.textContent = derash + ' ETB';
+        if (el = document.getElementById('game-called-count')) el.textContent = (data.called_numbers || []).length;
 
         if (data.status === 'selecting') {
-            document.getElementById('game-countdown').classList.remove('hidden');
-            document.getElementById('game-countdown').textContent = 'Waiting for players to join...';
+            var gc = document.getElementById('game-countdown');
+            if (gc) {
+                gc.classList.remove('hidden');
+                gc.textContent = 'Waiting for players to join...';
+            }
         } else if (data.status === 'playing') {
-            document.getElementById('game-countdown').classList.add('hidden');
+            var gc2 = document.getElementById('game-countdown');
+            if (gc2) gc2.classList.add('hidden');
 
-            const nextAt = data.next_number_at;
+            var nextAt = data.next_number_at;
             if (nextAt) {
-                let nextMs;
+                var nextMs;
                 if (typeof nextAt === 'object' && nextAt.toDate) {
                     nextMs = nextAt.toDate().getTime();
                 } else if (typeof nextAt === 'string') {
@@ -203,12 +277,12 @@ function listenToRound(roundId) {
                 }
             }
 
-            const called = data.called_numbers || [];
-            for (let i = prevCalledCount; i < called.length; i++) {
-                const num = called[i];
+            var called = data.called_numbers || [];
+            for (var i = prevCalledCount; i < called.length; i++) {
+                var num = called[i];
                 if (!calledNumbers.has(num)) {
                     calledNumbers.add(num);
-                    const isLast = (i === called.length - 1);
+                    var isLast = (i === called.length - 1);
                     highlightMasterNumber(num, isLast);
                     addCalledNumberTag(num);
                     autoMarkAllCartelas(num);
@@ -232,53 +306,57 @@ function listenToRound(roundId) {
 }
 
 function showNumberAnnouncement(num) {
-    const letter = getNumberLetter(num);
-    const color = getLetterColor(letter);
-    document.getElementById('announce-letter').textContent = letter;
-    document.getElementById('announce-letter').style.color = color;
-    document.getElementById('announce-number').textContent = num;
-    document.getElementById('number-announce').classList.remove('hidden');
-    document.getElementById('number-waiting').classList.add('hidden');
-    setTimeout(() => {
-        document.getElementById('number-announce').classList.add('hidden');
-        document.getElementById('number-waiting').classList.remove('hidden');
+    var letter = getNumberLetter(num);
+    var color = getLetterColor(letter);
+    var al = document.getElementById('announce-letter');
+    var an = document.getElementById('announce-number');
+    var na = document.getElementById('number-announce');
+    var nw = document.getElementById('number-waiting');
+    if (al) { al.textContent = letter; al.style.color = color; }
+    if (an) an.textContent = num;
+    if (na) na.classList.remove('hidden');
+    if (nw) nw.classList.add('hidden');
+    setTimeout(function() {
+        if (na) na.classList.add('hidden');
+        if (nw) nw.classList.remove('hidden');
     }, 3500);
 }
 
 // ==================== BINGO CHECK ====================
 async function checkMyBingo() {
     try {
-        const calledArr = Array.from(calledNumbers);
-        for (const [cartelaNum, flat] of Object.entries(myCartelas)) {
-            if (checkBingoLocal(flat, calledArr)) {
-                try {
-                    const roundRef = db.collection('rounds').doc(currentRoundId);
-                    const uidStr = String(currentUser.id);
+        var calledArr = Array.from(calledNumbers);
+        for (var cartelaNum in myCartelas) {
+            if (myCartelas.hasOwnProperty(cartelaNum)) {
+                if (checkBingoLocal(myCartelas[cartelaNum], calledArr)) {
+                    try {
+                        var roundRef = db.collection('rounds').doc(currentRoundId);
+                        var uidStr = String(currentUser.id);
 
-                    await db.runTransaction(async (txn) => {
-                        const roundSnap = await txn.get(roundRef);
-                        if (!roundSnap.exists) return;
-                        const rd = roundSnap.data();
-                        if (rd.status === 'completed') return;
-                        const currentWinners = rd.winners || [];
-                        if (currentWinners.includes(uidStr)) return;
+                        await db.runTransaction(async function(txn) {
+                            var roundSnap = await txn.get(roundRef);
+                            if (!roundSnap.exists) return;
+                            var rd = roundSnap.data();
+                            if (rd.status === 'completed') return;
+                            var currentWinners = rd.winners || [];
+                            if (currentWinners.includes(uidStr)) return;
 
-                        const newWinners = [...currentWinners, uidStr];
-                        
-                        // Mark payout_processed so server skips double-processing
-                        txn.update(roundRef, {
-                            status: 'completed',
-                            winners: newWinners,
-                            winner_name: currentUser.first_name || 'Player',
-                            winning_cartela: parseInt(cartelaNum),
-                            payout_processed: true,
-                            completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                            var newWinners = currentWinners.concat([uidStr]);
+                            
+                            txn.update(roundRef, {
+                                status: 'completed',
+                                winners: newWinners,
+                                winner_name: currentUser.first_name || 'Player',
+                                winning_cartela: parseInt(cartelaNum),
+                                payout_processed: true,
+                                completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                            });
                         });
-                    });
-                } catch (err) {
-                    console.error('Error claiming bingo:', err);
+                    } catch (err) {
+                        console.error('Error claiming bingo:', err);
+                    }
+                    return;
                 }
-                return;
             }
         }
     } catch (err) {
@@ -287,14 +365,14 @@ async function checkMyBingo() {
 }
 
 function checkBingoLocal(flat, called) {
-    const calledSet = new Set(called);
-    const grid = [];
-    for (let r = 0; r < 5; r++) grid.push(flat.slice(r * 5, r * 5 + 5));
-    const isM = n => n === 0 || calledSet.has(n);
-    for (const row of grid) { if (row.every(isM)) return true; }
-    for (let c = 0; c < 5; c++) { if (grid.every(row => isM(row[c]))) return true; }
-    if ([0,1,2,3,4].every(i => isM(grid[i][i]))) return true;
-    if ([0,1,2,3,4].every(i => isM(grid[i][4-i]))) return true;
+    var calledSet = new Set(called);
+    var grid = [];
+    for (var r = 0; r < 5; r++) grid.push(flat.slice(r * 5, r * 5 + 5));
+    var isM = function(n) { return n === 0 || calledSet.has(n); };
+    for (var ri = 0; ri < 5; ri++) { if (grid[ri].every(isM)) return true; }
+    for (var c = 0; c < 5; c++) { if (grid.every(function(row) { return isM(row[c]); })) return true; }
+    if ([0,1,2,3,4].every(function(i) { return isM(grid[i][i]); })) return true;
+    if ([0,1,2,3,4].every(function(i) { return isM(grid[i][4-i]); })) return true;
     return false;
 }
 
@@ -302,102 +380,113 @@ function checkBingoLocal(flat, called) {
 function handleRoundCompleted(data) {
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
     stopGameCountdown();
-    document.getElementById('number-announce').classList.add('hidden');
-    document.getElementById('number-waiting').classList.remove('hidden');
+    var na = document.getElementById('number-announce');
+    var nw = document.getElementById('number-waiting');
+    if (na) na.classList.add('hidden');
+    if (nw) nw.classList.remove('hidden');
     listenerReady = false;
-    const uidStr = String(currentUser.id);
-    const isWinner = (data.winners || []).includes(uidStr);
-    const noWinner = !data.winners || data.winners.length === 0;
+    if (!currentUser) return;
+    var uidStr = String(currentUser.id);
+    var isWinner = (data.winners || []).includes(uidStr);
+    var noWinner = !data.winners || data.winners.length === 0;
 
     if (isWinner) {
         playWinSound();
         showWinModal(data);
     } else if (noWinner) {
         showToast('All numbers called! No winner this round.');
-        setTimeout(() => { isSpectator = false; navigateTo('home'); }, 4000);
+        setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 4000);
     } else if (isSpectator) {
-        const winnerName = data.winner_name || 'Unknown';
-        const prize = Math.round(data.prize_per_winner || 0);
-        showToast(`${winnerName} won ${prize} ETB!`);
-        setTimeout(() => { isSpectator = false; navigateTo('home'); }, 5000);
+        var winnerName = data.winner_name || 'Unknown';
+        var prize = Math.round(data.prize_per_winner || 0);
+        showToast(winnerName + ' won ' + prize + ' ETB!');
+        setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 5000);
     } else {
         showToast('Game over! Better luck next time.');
-        setTimeout(() => navigateTo('home'), 3000);
+        setTimeout(async function() { await navigateTo('home'); }, 3000);
     }
 }
 
 function showWinModal(data) {
-    document.getElementById('winner-name').textContent = currentUser.first_name || 'Player';
-    document.getElementById('winner-cartela').textContent = data.winning_cartela || '?';
-    document.getElementById('winner-prize').textContent = Math.round(data.prize_per_winner || 0) + ' ETB';
+    var wn = document.getElementById('winner-name');
+    var wc = document.getElementById('winner-cartela');
+    var wp = document.getElementById('winner-prize');
+    if (wn) wn.textContent = (currentUser ? currentUser.first_name : 'Player') || 'Player';
+    if (wc) wc.textContent = data.winning_cartela || '?';
+    if (wp) wp.textContent = Math.round(data.prize_per_winner || 0) + ' ETB';
 
-    const cartelaNum = data.winning_cartela;
-    const flat = myCartelas[cartelaNum];
-    const winGrid = document.getElementById('win-cartela-grid');
-    winGrid.innerHTML = '';
-    if (flat) {
-        const calledArr = data.called_numbers || [];
-        const calledSet = new Set(calledArr);
-        for (let i = 0; i < 25; i++) {
-            const num = flat[i];
-            const cell = document.createElement('div');
-            cell.className = 'rounded text-[9px] font-bold text-center py-1';
-            if (num === 0) {
-                cell.textContent = '★';
-                cell.style.background = 'rgba(255,140,0,0.5)';
-                cell.style.color = '#fff';
-            } else if (calledSet.has(num)) {
-                cell.textContent = num;
-                cell.style.background = 'rgba(16,185,129,0.5)';
-                cell.style.color = '#fff';
-            } else {
-                cell.textContent = num;
-                cell.style.background = 'rgba(255,255,255,0.1)';
-                cell.style.color = 'rgba(255,255,255,0.5)';
+    var cartelaNum = data.winning_cartela;
+    var flat = myCartelas[cartelaNum];
+    var winGrid = document.getElementById('win-cartela-grid');
+    if (winGrid) {
+        winGrid.innerHTML = '';
+        if (flat) {
+            var calledArr = data.called_numbers || [];
+            var calledSet = new Set(calledArr);
+            for (var i = 0; i < 25; i++) {
+                var num = flat[i];
+                var cell = document.createElement('div');
+                cell.className = 'rounded text-[9px] font-bold text-center py-1';
+                if (num === 0) {
+                    cell.textContent = '★';
+                    cell.style.background = 'rgba(255,140,0,0.5)';
+                    cell.style.color = '#fff';
+                } else if (calledSet.has(num)) {
+                    cell.textContent = num;
+                    cell.style.background = 'rgba(16,185,129,0.5)';
+                    cell.style.color = '#fff';
+                } else {
+                    cell.textContent = num;
+                    cell.style.background = 'rgba(255,255,255,0.1)';
+                    cell.style.color = 'rgba(255,255,255,0.5)';
+                }
+                winGrid.appendChild(cell);
             }
-            winGrid.appendChild(cell);
         }
     }
 
-    document.getElementById('win-modal').classList.remove('hidden');
-    let secs = 8;
-    document.getElementById('win-countdown').textContent = secs;
-    winCountdownInterval = setInterval(() => {
+    var winModal = document.getElementById('win-modal');
+    var winCountdown = document.getElementById('win-countdown');
+    if (winModal) winModal.classList.remove('hidden');
+    var secs = 8;
+    if (winCountdown) winCountdown.textContent = secs;
+    winCountdownInterval = setInterval(function() {
         secs--;
-        document.getElementById('win-countdown').textContent = secs;
+        if (winCountdown) winCountdown.textContent = secs;
         if (secs <= 0) {
             clearInterval(winCountdownInterval);
-            document.getElementById('win-modal').classList.add('hidden');
+            if (winModal) winModal.classList.add('hidden');
             navigateTo('home');
         }
     }, 1000);
 }
 
 function loadMyCartelas(roundData) {
-    const uidStr = String(currentUser.id);
-    const playerInfo = roundData.players ? roundData.players[uidStr] : null;
+    if (!currentUser) { isSpectator = true; return Promise.resolve(); }
+    var uidStr = String(currentUser.id);
+    var playerInfo = roundData.players ? roundData.players[uidStr] : null;
     if (!playerInfo) {
         isSpectator = true;
         return Promise.resolve();
     }
     myCartelas = {};
-    const promises = (playerInfo.cartelas || []).map(num =>
-        db.collection('cartelas_master').doc(String(num)).get().then(doc => {
+    var promises = (playerInfo.cartelas || []).map(function(num) {
+        return db.collection('cartelas_master').doc(String(num)).get().then(function(doc) {
             if (doc.exists) myCartelas[num] = doc.data().cartela;
-        })
-    );
-    return Promise.all(promises).then(() => {
+        });
+    });
+    return Promise.all(promises).then(function() {
         setupGameBoard();
-        const called = roundData.called_numbers || [];
-        called.forEach((num, idx) => {
+        var called = roundData.called_numbers || [];
+        called.forEach(function(num, idx) {
             calledNumbers.add(num);
             highlightMasterNumber(num, idx === called.length - 1);
             addCalledNumberTag(num);
-            const strip = document.getElementById('called-tags');
+            var strip = document.getElementById('called-tags');
             if (strip) strip.scrollLeft = strip.scrollWidth;
             autoMarkAllCartelas(num);
         });
-    }).catch(err => {
+    }).catch(function(err) {
         console.error('Error loading cartelas:', err);
         showToast('Error loading cartela data');
     });
@@ -407,7 +496,8 @@ function leaveGame() {
     isSpectator = false;
     listenerReady = false;
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
-    stopGameCountdown();
+    try { stopGameCountdown(); } catch(e) {}
+    try { stopSelectionCountdown(); } catch(e) {}
     if (winCountdownInterval) { clearInterval(winCountdownInterval); winCountdownInterval = null; }
     myCartelas = {};
     calledNumbers = new Set();
@@ -418,19 +508,20 @@ function leaveGame() {
 
 function refreshGame() {
     if (currentRoundId) {
-        db.collection('rounds').doc(currentRoundId).get().then(doc => {
+        db.collection('rounds').doc(currentRoundId).get().then(function(doc) {
             if (doc.exists) {
-                const data = doc.data();
+                var data = doc.data();
                 calledNumbers = new Set();
                 setupGameBoard();
-                const called = data.called_numbers || [];
-                called.forEach((num, idx) => {
+                var called = data.called_numbers || [];
+                called.forEach(function(num, idx) {
                     calledNumbers.add(num);
                     highlightMasterNumber(num, idx === called.length - 1);
                     addCalledNumberTag(num);
                     autoMarkAllCartelas(num);
                 });
-                document.getElementById('game-called-count').textContent = (data.called_numbers || []).length;
+                var gcc = document.getElementById('game-called-count');
+                if (gcc) gcc.textContent = (data.called_numbers || []).length;
             }
         });
     }

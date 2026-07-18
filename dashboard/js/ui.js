@@ -1,12 +1,11 @@
 // ==================== DISPLAY UPDATES ====================
 function updateAllDisplays() {
     if (!currentUser) return;
-    const bal = currentUser.balance || 0;
-    const pw = currentUser.play_wallet || 0;
+    var bal = currentUser.balance || 0;
+    var pw = currentUser.play_wallet || 0;
     
-    // Helper to safely update element text
     function setText(id, text) {
-        const el = document.getElementById(id);
+        var el = document.getElementById(id);
         if (el) el.textContent = text;
     }
     
@@ -21,35 +20,38 @@ function updateAllDisplays() {
     setText('profile-games', currentUser.total_games || 0);
     setText('profile-wins', currentUser.wins || 0);
     
-    const tg2 = currentUser.total_games || 0;
-    const w2 = currentUser.wins || 0;
+    var tg2 = currentUser.total_games || 0;
+    var w2 = currentUser.wins || 0;
     setText('profile-winrate', (tg2 > 0 ? Math.round((w2 / tg2) * 100) : 0) + '%');
     setText('profile-earnings', ((currentUser.wins || 0) * STAKE * 0.75) + ' ETB');
 }
 
 // ==================== NAVIGATION ====================
 async function navigateTo(screen) {
-    if (currentScreen === 'game' && screen !== 'game') leaveGame();
+    if (currentScreen === 'game' && screen !== 'game') {
+        try { leaveGame(); } catch(e) { console.warn('leaveGame error:', e); }
+    }
     
-    // Load the page on demand if PageLoader is available
     if (window.PageLoader) {
         await PageLoader.loadOnDemand(screen);
     }
     
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById('screen-' + screen);
+    document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+    var target = document.getElementById('screen-' + screen);
     if (target) { 
+        target.classList.remove('screen-transition');
+        void target.offsetWidth;
         target.classList.add('active'); 
         target.classList.add('screen-transition'); 
     }
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const navBtn = document.querySelector('.nav-item[data-screen="' + screen + '"]');
+    document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+    var navBtn = document.querySelector('.nav-item[data-screen="' + screen + '"]');
     if (navBtn) navBtn.classList.add('active');
     currentScreen = screen;
-    document.getElementById('bottom-nav').style.display = (screen === 'game') ? 'none' : '';
-    if (screen === 'history') loadHistory();
+    var bottomNav = document.getElementById('bottom-nav');
+    if (bottomNav) bottomNav.style.display = (screen === 'game') ? 'none' : '';
+    if (screen === 'history' && currentUser) loadHistory();
     
-    // Update displays after navigation
     if (currentUser && typeof updateAllDisplays === 'function') {
         updateAllDisplays();
     }

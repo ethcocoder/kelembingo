@@ -1,6 +1,6 @@
         <!-- Header bar -->
         <div class="px-3 py-2 flex items-center justify-between border-b border-white/5">
-            <button onclick="leaveGame(); navigateTo('home')" class="w-8 h-8 rounded-full glass flex items-center justify-center text-white/70">
+            <button onclick="leaveGame(); navigateTo('home').catch(()=>{})" class="w-8 h-8 rounded-full glass flex items-center justify-center text-white/70">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
             <h2 class="text-sm font-semibold text-white">Yegara Bingo</h2>
@@ -35,13 +35,13 @@
             </div>
             <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25);">
                 <div class="text-[9px] text-red-400/60 uppercase">Timer</div>
-                <div id="game-timer" class="text-[11px] font-bold text-red-400">35</div>
+                <div id="game-timer" class="text-[11px] font-bold text-red-400">--</div>
             </div>
         </div>
 
         <!-- Countdown banner -->
         <div class="px-3 py-1">
-            <div id="game-countdown" class="hidden text-center rounded-xl px-4 py-3 mb-2 font-bold text-sm" style="background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(59,130,246,0.3)); border: 1px solid rgba(139,92,246,0.4); color: #c4b5fd;">Game starts in 10s — Admin choosing winners...</div>
+            <div id="game-countdown" class="hidden text-center rounded-xl px-4 py-3 mb-2 font-bold text-sm" style="background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(59,130,246,0.3)); border: 1px solid rgba(139,92,246,0.4); color: #c4b5fd;">Waiting for players...</div>
         </div>
 
         <!-- Main game area: Responsive Layout -->
@@ -131,7 +131,7 @@
         <!-- Bottom bar -->
         <div class="px-3 py-2 mt-auto">
             <div class="glass rounded-xl p-2 flex items-center justify-between">
-                <button onclick="leaveGame(); navigateTo('home')" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-[11px] font-semibold btn-hover flex items-center gap-1">
+                <button onclick="leaveGame(); navigateTo('home').catch(()=>{})" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-[11px] font-semibold btn-hover flex items-center gap-1">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     Leave
                 </button>

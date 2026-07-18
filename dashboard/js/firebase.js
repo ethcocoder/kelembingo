@@ -98,26 +98,28 @@
         }
 
         onSnapshot(onNext, onError) {
-            let ws;
-            const connect = () => {
-                ws = new WebSocket(`${WS_BASE}/api/ws`);
-                ws.onopen = () => {
-                    ws.send(JSON.stringify({ collection: this._collection, doc_id: this.id }));
+            var ws;
+            var stopped = false;
+            var connect = function() {
+                if (stopped) return;
+                ws = new WebSocket(WS_BASE + '/api/ws');
+                ws.onopen = function() {
+                    ws.send(JSON.stringify({ collection: self._collection, doc_id: self.id }));
                 };
-                ws.onmessage = (ev) => {
-                    const msg = JSON.parse(ev.data);
+                ws.onmessage = function(ev) {
+                    var msg = JSON.parse(ev.data);
                     if (msg.type === 'snapshot') {
-                        const snap = new MockDocumentSnapshot(msg.id, msg.data, msg.exists, this);
+                        var snap = new MockDocumentSnapshot(msg.id, msg.data, msg.exists, self);
                         onNext(snap);
                     }
                 };
-                ws.onerror = e => onError && onError(e);
-                ws.onclose = () => setTimeout(connect, 2000);
+                ws.onerror = function(e) { if (!stopped && onError) onError(e); };
+                ws.onclose = function() { if (!stopped) setTimeout(connect, 2000); };
             };
+            var self = this;
             connect();
-            // Also load immediately
-            this.get().then(onNext).catch(e => onError && onError(e));
-            return () => ws && ws.close();   // unsubscribe function
+            this.get().then(onNext).catch(function(e) { if (!stopped && onError) onError(e); });
+            return function() { stopped = true; if (ws) ws.close(); };
         }
 
         collection(sub) {
@@ -165,28 +167,30 @@
         }
 
         onSnapshot(onNext, onError) {
-            let ws;
-            const connect = () => {
-                ws = new WebSocket(`${WS_BASE}/api/ws`);
-                ws.onopen = () => {
-                    ws.send(JSON.stringify({ collection: this._collection }));
+            var ws;
+            var stopped = false;
+            var self = this;
+            var connect = function() {
+                if (stopped) return;
+                ws = new WebSocket(WS_BASE + '/api/ws');
+                ws.onopen = function() {
+                    ws.send(JSON.stringify({ collection: self._collection }));
                 };
-                ws.onmessage = (ev) => {
-                    const msg = JSON.parse(ev.data);
+                ws.onmessage = function(ev) {
+                    var msg = JSON.parse(ev.data);
                     if (msg.type === 'query_snapshot') {
-                        const snap = new MockQuerySnapshot(
-                            msg.docs.map(d => new MockDocumentSnapshot(d.id, d.data, true, new MockDocumentReference(this._collection, d.id)))
+                        var snap = new MockQuerySnapshot(
+                            msg.docs.map(function(d) { return new MockDocumentSnapshot(d.id, d.data, true, new MockDocumentReference(self._collection, d.id)); })
                         );
                         onNext(snap);
                     }
                 };
-                ws.onerror = e => onError && onError(e);
-                ws.onclose = () => setTimeout(connect, 2000);
+                ws.onerror = function(e) { if (!stopped && onError) onError(e); };
+                ws.onclose = function() { if (!stopped) setTimeout(connect, 2000); };
             };
             connect();
-            // Initial load
-            this.get().then(onNext).catch(e => onError && onError(e));
-            return () => ws && ws.close();
+            this.get().then(onNext).catch(function(e) { if (!stopped && onError) onError(e); });
+            return function() { stopped = true; if (ws) ws.close(); };
         }
     }
 

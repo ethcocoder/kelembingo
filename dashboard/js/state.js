@@ -1,36 +1,36 @@
 // ==================== STATE ====================
-let currentUser = null;
-let currentScreen = 'home';
-let currentRoundId = null;
-let roundUnsubscribe = null;
-let userUnsubscribe = null;
-let statsUnsubscribe = null;
-let selectedCartelas = [];
-let myCartelas = {};
-let autoMarkEnabled = false;
-let calledNumbers = new Set();
-let gameCountdownInterval = null;
-let winCountdownInterval = null;
-let listenerReady = false;
-let isSpectator = false;
-let serverTimeOffset = 0; // ms offset: serverTime - clientTime
+var currentUser = null;
+var currentScreen = 'home';
+var currentRoundId = null;
+var roundUnsubscribe = null;
+var userUnsubscribe = null;
+var statsUnsubscribe = null;
+var selectedCartelas = [];
+var myCartelas = {};
+var autoMarkEnabled = false;
+var calledNumbers = new Set();
+var gameCountdownInterval = null;
+var selectionCountdownInterval = null;
+var winCountdownInterval = null;
+var listenerReady = false;
+var isSpectator = false;
+var serverTimeOffset = 0;
 
-// Returns the current time in ms, corrected to server clock
+var SELECTION_DURATION = 60; // seconds for card selection phase
+
 function serverNow() {
     return Date.now() + serverTimeOffset;
 }
 
-// Call once at startup to calibrate the offset
 async function syncServerTime() {
     try {
-        const before = Date.now();
-        const res = await fetch((window.API_BASE || window.location.origin) + '/api/time');
-        const after = Date.now();
-        const data = await res.json();
-        const serverMs = new Date(data.iso).getTime();
-        // Account for network latency: assume server responded at midpoint
-        const rtt = after - before;
-        const clientMid = before + Math.floor(rtt / 2);
+        var before = Date.now();
+        var res = await fetch((window.API_BASE || window.location.origin) + '/api/time');
+        var after = Date.now();
+        var data = await res.json();
+        var serverMs = new Date(data.iso).getTime();
+        var rtt = after - before;
+        var clientMid = before + Math.floor(rtt / 2);
         serverTimeOffset = serverMs - clientMid;
         console.log('[TimeSync] offset=' + serverTimeOffset + 'ms, rtt=' + rtt + 'ms');
     } catch (e) {
@@ -40,14 +40,14 @@ async function syncServerTime() {
 }
 
 // Audio state
-let musicEnabled = false;
-let voiceEnabled = true;
-let masterVolume = 0.8;
-let bgMusicAudio = null;
-let audioCtx = null;
+var musicEnabled = false;
+var voiceEnabled = true;
+var masterVolume = 0.8;
+var bgMusicAudio = null;
+var audioCtx = null;
 
 // Telegram WebApp
-const tg = window.Telegram?.WebApp;
+var tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
     tg.ready();
     tg.expand();

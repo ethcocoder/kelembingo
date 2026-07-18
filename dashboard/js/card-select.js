@@ -1,7 +1,7 @@
 // ==================== PLAY NOW ====================
 async function playNow() {
     if (!currentUser) { showToast('Loading user data...'); return; }
-    const pw = currentUser.play_wallet || 0;
+    var pw = currentUser.play_wallet || 0;
     if (pw < STAKE) {
         showToast('Not enough balance! Need at least ' + STAKE + ' ETB');
         return;
@@ -9,15 +9,13 @@ async function playNow() {
 
     showLoading('Finding game...');
     try {
-        // Find current active round (selecting or playing)
-        let roundSnap = await db.collection('rounds')
+        var roundSnap = await db.collection('rounds')
             .where('status', 'in', ['selecting', 'playing'])
             .orderBy('created_at', 'desc')
             .limit(1).get();
 
-        let roundData, roundId;
+        var roundData, roundId;
         if (roundSnap.empty) {
-            // No active round yet. Create one immediately so the user doesn't have to wait.
             roundData = {
                 status: 'selecting',
                 stake: STAKE,
@@ -31,7 +29,7 @@ async function playNow() {
                 created_at: firebase.firestore.FieldValue.serverTimestamp(),
                 completed_at: null,
             };
-            const ref = await db.collection('rounds').add(roundData);
+            var ref = await db.collection('rounds').add(roundData);
             roundId = ref.id;
             currentRoundId = roundId;
             
@@ -40,13 +38,12 @@ async function playNow() {
             return;
         }
 
-        const doc = roundSnap.docs[0];
+        var doc = roundSnap.docs[0];
         roundData = doc.data();
         roundId = doc.id;
         currentRoundId = roundId;
 
         if (roundData.status === 'playing') {
-            // Already checking if they played
             if (roundData.players && roundData.players[String(currentUser.id)]) {
                 hideLoading();
                 showToast('Rejoining current game!');
@@ -64,7 +61,6 @@ async function playNow() {
                 return;
             }
         } else {
-            // Selecting status
             if (roundData.players && roundData.players[String(currentUser.id)]) {
                 hideLoading();
                 showToast('You already joined this round!');
@@ -90,33 +86,54 @@ async function showCardSelection(roundId, roundData) {
     listenerReady = false;
     updateSelectedInfo();
 
-    // Calculate estimated derash: player_count * stake * 0.75
-    const playerCount = roundData.player_count || 0;
-    const estimatedDerash = Math.round((playerCount || 1) * STAKE * 0.75);
-    document.getElementById('cs-stake').textContent = STAKE + ' ETB';
-    document.getElementById('cs-derash').textContent = estimatedDerash + ' ETB';
-    document.getElementById('cs-main-wallet').textContent = (currentUser.balance || 0) + ' ETB';
-    document.getElementById('cs-play-wallet').textContent = (currentUser.play_wallet || 0) + ' ETB';
-    document.getElementById('cs-preview-container').classList.add('hidden');
-    document.getElementById('card-select-screen').classList.remove('hidden');
+    var playerCount = roundData.player_count || 0;
+    var estimatedDerash = Math.round((playerCount || 1) * STAKE * 0.75);
+    var el;
+    if (el = document.getElementById('cs-stake')) el.textContent = STAKE + ' ETB';
+    if (el = document.getElementById('cs-derash')) el.textContent = estimatedDerash + ' ETB';
+    if (el = document.getElementById('cs-main-wallet')) el.textContent = (currentUser.balance || 0) + ' ETB';
+    if (el = document.getElementById('cs-play-wallet')) el.textContent = (currentUser.play_wallet || 0) + ' ETB';
+    if (el = document.getElementById('cs-preview-container')) el.classList.add('hidden');
+    if (el = document.getElementById('card-select-screen')) el.classList.remove('hidden');
 
-    const grid = document.getElementById('card-select-grid');
-    grid.innerHTML = '<div class="col-span-8 text-center py-8"><div class="text-3xl mb-2 float-anim">🃏</div><p class="text-white/50 text-sm">Loading cartelas...</p></div>';
+    // Start selection timer based on round created_at
+    var created_at = roundData.created_at;
+    if (created_at) {
+        var catMs;
+        if (typeof created_at === 'object' && created_at.toDate) {
+            catMs = created_at.toDate().getTime();
+        } else if (typeof created_at === 'string') {
+            catMs = new Date(created_at).getTime();
+        } else if (typeof created_at === 'object' && created_at._iso) {
+            catMs = new Date(created_at._iso).getTime();
+        } else if (typeof created_at === 'object' && created_at.seconds) {
+            catMs = created_at.seconds * 1000;
+        } else {
+            catMs = new Date(created_at).getTime();
+        }
+        if (!isNaN(catMs)) {
+            var deadlineMs = catMs + (SELECTION_DURATION * 1000);
+            startSelectionCountdown(deadlineMs);
+        }
+    }
+
+    var grid = document.getElementById('card-select-grid');
+    if (grid) grid.innerHTML = '<div class="col-span-8 text-center py-8"><div class="text-3xl mb-2 float-anim">🃏</div><p class="text-white/50 text-sm">Loading cartelas...</p></div>';
 
     try {
-        const masterSnap = await db.collection('cartelas_master').orderBy('number').get();
+        var masterSnap = await db.collection('cartelas_master').orderBy('number').get();
         if (masterSnap.empty) {
-            grid.innerHTML = '<div class="col-span-8 text-center py-12 px-4"><div class="text-4xl mb-3">😓</div><p class="text-white/80 text-sm font-bold mb-1">No Cards Generated</p><p class="text-white/40 text-xs">Admin needs to generate cartelas first.</p></div>';
+            if (grid) grid.innerHTML = '<div class="col-span-8 text-center py-12 px-4"><div class="text-4xl mb-3">😓</div><p class="text-white/80 text-sm font-bold mb-1">No Cards Generated</p><p class="text-white/40 text-xs">Admin needs to generate cartelas first.</p></div>';
             return;
         }
 
-        const takenSet = new Set(roundData.taken_cartelas || []);
+        var takenSet = new Set(roundData.taken_cartelas || []);
 
-        grid.innerHTML = '';
-        masterSnap.forEach(doc => {
-            const d = doc.data();
-            const num = d.number;
-            const cell = document.createElement('div');
+        if (grid) grid.innerHTML = '';
+        masterSnap.forEach(function(doc) {
+            var d = doc.data();
+            var num = d.number;
+            var cell = document.createElement('div');
             cell.className = 'card-tile';
             cell.textContent = num;
             cell.dataset.num = num;
@@ -124,23 +141,25 @@ async function showCardSelection(roundId, roundData) {
             if (takenSet.has(num)) {
                 cell.classList.add('taken');
             } else {
-                cell.onclick = () => toggleCardSelection(num, cell);
+                cell.onclick = (function(n, c) { return function() { toggleCardSelection(n, c); }; })(num, cell);
             }
-            grid.appendChild(cell);
+            if (grid) grid.appendChild(cell);
         });
 
         if (roundUnsubscribe) roundUnsubscribe();
-        roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(snap => {
+        roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(function(snap) {
             if (!snap.exists) return;
-            const rd = snap.data();
-            const nowTaken = new Set(rd.taken_cartelas || []);
-            grid.querySelectorAll('.card-tile').forEach(cell => {
-                const n = parseInt(cell.dataset.num);
-                if (nowTaken.has(n) && !selectedCartelas.includes(n)) {
-                    cell.className = 'card-tile taken';
-                    cell.onclick = null;
-                }
-            });
+            var rd = snap.data();
+            var nowTaken = new Set(rd.taken_cartelas || []);
+            if (grid) {
+                grid.querySelectorAll('.card-tile').forEach(function(cell) {
+                    var n = parseInt(cell.dataset.num);
+                    if (nowTaken.has(n) && !selectedCartelas.includes(n)) {
+                        cell.className = 'card-tile taken';
+                        cell.onclick = null;
+                    }
+                });
+            }
 
             if (!listenerReady) {
                 listenerReady = true;
@@ -148,7 +167,7 @@ async function showCardSelection(roundId, roundData) {
             }
 
             if (rd.status === 'completed' || rd.status === 'cancelled') {
-                const selectScreen = document.getElementById('card-select-screen');
+                var selectScreen = document.getElementById('card-select-screen');
                 if (selectScreen && !selectScreen.classList.contains('hidden')) {
                     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
                     playNow();
@@ -157,28 +176,32 @@ async function showCardSelection(roundId, roundData) {
             }
 
             if (rd.status === 'playing') {
-                const uid = String(currentUser.id);
+                var uid = String(currentUser.id);
                 if (rd.players && rd.players[uid]) {
                     document.getElementById('card-select-screen').classList.add('hidden');
-                    await navigateTo('game');
-                    loadMyCartelas(rd);
-                    listenToRound(roundId);
+                    stopSelectionCountdown();
+                    navigateTo('game').then(function() {
+                        loadMyCartelas(rd);
+                        listenToRound(roundId);
+                    });
                 } else {
                     document.getElementById('card-select-screen').classList.add('hidden');
-                    await navigateTo('game');
-                    setupGameBoard();
-                    listenToRound(roundId);
+                    stopSelectionCountdown();
+                    navigateTo('game').then(function() {
+                        setupGameBoard();
+                        listenToRound(roundId);
+                    });
                 }
             }
         });
     } catch (err) {
         console.error('Error loading cartelas:', err);
-        grid.innerHTML = '<div class="col-span-8 text-center py-8"><p class="text-red-400 text-sm">Error: ' + err.message + '</p></div>';
+        if (grid) grid.innerHTML = '<div class="col-span-8 text-center py-8"><p class="text-red-400 text-sm">Error: ' + err.message + '</p></div>';
     }
 }
 
 function toggleCardSelection(num, cell) {
-    const idx = selectedCartelas.indexOf(num);
+    var idx = selectedCartelas.indexOf(num);
     if (idx > -1) {
         selectedCartelas.splice(idx, 1);
         cell.className = 'card-tile';
@@ -186,14 +209,15 @@ function toggleCardSelection(num, cell) {
         if (selectedCartelas.length > 0) {
             renderCardSelectPreview(selectedCartelas[selectedCartelas.length - 1]);
         } else {
-            document.getElementById('cs-preview-container').classList.add('hidden');
+            var pc = document.getElementById('cs-preview-container');
+            if (pc) pc.classList.add('hidden');
         }
     } else {
         if (selectedCartelas.length >= MAX_CARTELAS) {
             showToast('Maximum ' + MAX_CARTELAS + ' cartelas!');
             return;
         }
-        const budgetMax = Math.floor((currentUser.play_wallet || 0) / STAKE);
+        var budgetMax = Math.floor((currentUser.play_wallet || 0) / STAKE);
         if (selectedCartelas.length >= budgetMax) {
             showToast('Not enough balance for more cards!');
             return;
@@ -206,25 +230,25 @@ function toggleCardSelection(num, cell) {
 }
 
 async function renderCardSelectPreview(num) {
-    const container = document.getElementById('cs-preview-container');
-    const grid = document.getElementById('cs-preview-grid');
-    const title = document.getElementById('cs-preview-title');
+    var container = document.getElementById('cs-preview-container');
+    var grid = document.getElementById('cs-preview-grid');
+    var title = document.getElementById('cs-preview-title');
     if (!num) {
-        container.classList.add('hidden');
+        if (container) container.classList.add('hidden');
         return;
     }
-    container.classList.remove('hidden');
-    title.textContent = 'Cartela No : ' + num;
-    grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-gray-500 font-normal">Loading card numbers...</div>';
+    if (container) container.classList.remove('hidden');
+    if (title) title.textContent = 'Cartela No : ' + num;
+    if (grid) grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-gray-500 font-normal">Loading card numbers...</div>';
     try {
-        const doc = await db.collection('cartelas_master').doc(String(num)).get();
+        var doc = await db.collection('cartelas_master').doc(String(num)).get();
         if (doc.exists) {
-            const data = doc.data();
-            const flat = data.cartela || [];
-            grid.innerHTML = '';
-            for (let i = 0; i < 25; i++) {
-                const val = flat[i];
-                const cell = document.createElement('div');
+            var data = doc.data();
+            var flat = data.cartela || [];
+            if (grid) grid.innerHTML = '';
+            for (var i = 0; i < 25; i++) {
+                var val = flat[i];
+                var cell = document.createElement('div');
                 cell.className = 'py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 font-bold text-xs flex items-center justify-center';
                 if (val === 0) {
                     cell.innerHTML = '✨';
@@ -232,44 +256,51 @@ async function renderCardSelectPreview(num) {
                 } else {
                     cell.textContent = val;
                 }
-                grid.appendChild(cell);
+                if (grid) grid.appendChild(cell);
             }
         } else {
-            grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-red-400 font-normal">Card numbers not found</div>';
+            if (grid) grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-red-400 font-normal">Card numbers not found</div>';
         }
     } catch(err) {
         console.error(err);
-        grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-red-500 font-normal">Error loading card</div>';
+        if (grid) grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-red-500 font-normal">Error loading card</div>';
     }
 }
 
 function updateSelectedInfo() {
-    const count = selectedCartelas.length;
-    const info = document.getElementById('cs-selected-info');
-    const btn = document.getElementById('cs-confirm-btn');
+    var count = selectedCartelas.length;
+    var info = document.getElementById('cs-selected-info');
+    var btn = document.getElementById('cs-confirm-btn');
     if (count > 0) {
-        info.classList.remove('hidden');
-        if(btn) btn.classList.remove('hidden');
-        document.getElementById('cs-selected-count').textContent = count + '/' + MAX_CARTELAS;
-        document.getElementById('cs-selected-total').textContent = (count * STAKE) + ' ETB';
+        if (info) info.classList.remove('hidden');
+        if (btn) btn.classList.remove('hidden');
+        var sc = document.getElementById('cs-selected-count');
+        var st = document.getElementById('cs-selected-total');
+        if (sc) sc.textContent = count + '/' + MAX_CARTELAS;
+        if (st) st.textContent = (count * STAKE) + ' ETB';
     } else {
-        info.classList.add('hidden');
-        if(btn) btn.classList.add('hidden');
+        if (info) info.classList.add('hidden');
+        if (btn) btn.classList.add('hidden');
     }
 }
 
 // ==================== SPECTATOR / CANCEL ====================
 function cancelCardSelect() {
     selectedCartelas = [];
-    document.getElementById('cs-preview-container').classList.add('hidden');
+    stopSelectionCountdown();
+    var pc = document.getElementById('cs-preview-container');
+    if (pc) pc.classList.add('hidden');
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
-    document.getElementById('card-select-screen').classList.add('hidden');
+    var cs = document.getElementById('card-select-screen');
+    if (cs) cs.classList.add('hidden');
 }
 
-function enterSpectatorMode() {
+async function enterSpectatorMode() {
     isSpectator = true;
-    document.getElementById('card-select-screen').classList.add('hidden');
-    navigateTo('game');
+    var cs = document.getElementById('card-select-screen');
+    if (cs) cs.classList.add('hidden');
+    stopSelectionCountdown();
+    await navigateTo('game');
     setupGameBoard();
     listenToRound(currentRoundId);
     showToast('Spectating...');
@@ -277,7 +308,7 @@ function enterSpectatorMode() {
 
 function refreshCardSelect() {
     if (currentRoundId) {
-        db.collection('rounds').doc(currentRoundId).get().then(doc => {
+        db.collection('rounds').doc(currentRoundId).get().then(function(doc) {
             if (doc.exists) showCardSelection(currentRoundId, doc.data());
         });
     }
@@ -290,19 +321,19 @@ async function confirmSelection() {
     showLoading('Joining round...');
 
     try {
-        const totalCost = selectedCartelas.length * STAKE;
-        const uidStr = String(currentUser.id);
-        const roundRef = db.collection('rounds').doc(currentRoundId);
-        const userRef = db.collection('users').doc(uidStr);
+        var totalCost = selectedCartelas.length * STAKE;
+        var uidStr = String(currentUser.id);
+        var roundRef = db.collection('rounds').doc(currentRoundId);
+        var userRef = db.collection('users').doc(uidStr);
 
-        await db.runTransaction(async (txn) => {
-            const roundSnap = await txn.get(roundRef);
-            const userSnap = await txn.get(userRef);
+        await db.runTransaction(async function(txn) {
+            var roundSnap = await txn.get(roundRef);
+            var userSnap = await txn.get(userRef);
             if (!roundSnap.exists) throw new Error('Round not found.');
-            const rd = roundSnap.data();
+            var rd = roundSnap.data();
             if (rd.status !== 'selecting' && rd.status !== 'playing') throw new Error('Round already finished or cancelled.');
             if (rd.players && rd.players[uidStr]) throw new Error('Already joined.');
-            const pw = userSnap.data().play_wallet || 0;
+            var pw = userSnap.data().play_wallet || 0;
             if (pw < totalCost) throw new Error('Not enough balance.');
 
             txn.update(userRef, {
@@ -311,14 +342,14 @@ async function confirmSelection() {
                 updated_at: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            const players = rd.players || {};
+            var players = rd.players || {};
             players[uidStr] = {
                 cartelas: selectedCartelas,
                 name: currentUser.first_name || 'Player',
                 joined_at: new Date().toISOString()
             };
-            const takenSet = new Set(rd.taken_cartelas || []);
-            selectedCartelas.forEach(n => takenSet.add(n));
+            var takenSet = new Set(rd.taken_cartelas || []);
+            selectedCartelas.forEach(function(n) { takenSet.add(n); });
 
             txn.update(roundRef, {
                 players: players,
@@ -327,16 +358,20 @@ async function confirmSelection() {
             });
         });
 
-        for (const num of selectedCartelas) {
-            const cartelaDoc = await db.collection('cartelas_master').doc(String(num)).get();
+        for (var i = 0; i < selectedCartelas.length; i++) {
+            var num = selectedCartelas[i];
+            var cartelaDoc = await db.collection('cartelas_master').doc(String(num)).get();
             if (cartelaDoc.exists) {
                 myCartelas[num] = cartelaDoc.data().cartela;
             }
         }
 
         hideLoading();
-        document.getElementById('cs-preview-container').classList.add('hidden');
-        document.getElementById('card-select-screen').classList.add('hidden');
+        var pc = document.getElementById('cs-preview-container');
+        if (pc) pc.classList.add('hidden');
+        var cs = document.getElementById('card-select-screen');
+        if (cs) cs.classList.add('hidden');
+        stopSelectionCountdown();
         await navigateTo('game');
         setupGameBoard();
         listenToRound(currentRoundId);

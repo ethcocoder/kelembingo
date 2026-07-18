@@ -34,8 +34,9 @@
                 </div>
             </div>
             <div>
-                <div class="bg-emerald-600/20 text-emerald-400 font-black px-3.5 py-1.5 rounded-lg flex items-center justify-center min-w-[55px] border border-emerald-500/30">
-                    <span class="text-xs font-bold">PICK</span>
+                <div class="bg-emerald-600/20 text-emerald-400 font-black px-3.5 py-1.5 rounded-lg flex items-center justify-center min-w-[55px] border border-emerald-500/30 relative overflow-hidden">
+                    <div id="cs-timer-bar" class="absolute inset-0 opacity-30" style="background: linear-gradient(90deg, #10B981, #34D399); transition: width 0.3s;"></div>
+                    <span id="cs-timer" class="text-xs font-bold relative z-10">60s</span>
                 </div>
             </div>
         </div>
