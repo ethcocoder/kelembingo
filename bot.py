@@ -77,20 +77,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_reg = u.get('registered') or (u.get('phone') and len(u.get('phone')) > 0)
 
     if is_reg:
-        # Already registered — skip registration, show play directly
-        pw = u.get('play_wallet', 0)
-        bal = u.get('balance', 0)
-        text = (
-            f"👋 Welcome back, {user.first_name}!\n\n"
-            f"💰 Main Wallet: *{bal} ETB*\n"
-            f"🎮 Play Wallet: *{pw} ETB*\n\n"
-            f"Tap Play to start the game!"
-        )
+        # Already registered — show play directly, no extra text
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🎮 Play", callback_data="menu_play")],
-            [InlineKeyboardButton("💰 Wallet", callback_data="menu_balance"),
-             InlineKeyboardButton("🔗 Invite", callback_data="menu_invite")],
         ])
+        await update.effective_message.reply_text("👋 Welcome back!", reply_markup=kb)
+        return
     else:
         # New user — needs registration
         text = "👋 Welcome to Yegara Bingo! Choose an Option below."
