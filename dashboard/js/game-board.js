@@ -53,16 +53,13 @@ function setupGameBoard() {
 function buildMasterGrid() {
     const grid = document.getElementById('master-grid');
     grid.innerHTML = '';
-    const colColors = ['#3B82F6', '#8B5CF6', '#D946EF', '#10B981', '#F97316'];
+    const letters = ['b', 'i', 'n', 'g', 'o'];
     // Arrange column-wise: B(1-15), I(16-30), N(31-45), G(46-60), O(61-75)
     for (let row = 0; row < 15; row++) {
         for (let col = 0; col < 5; col++) {
             const num = col * 15 + row + 1;
             const cell = document.createElement('div');
-            cell.className = 'master-cell text-center rounded-sm font-black transition-all flex items-center justify-center';
-            cell.style.background = 'rgba(30, 35, 64, 0.4)';
-            cell.style.color = colColors[col] + '55';
-            cell.style.fontSize = '9px';
+            cell.className = 'master-cell letter-' + letters[col] + ' text-center rounded font-semibold transition-all flex items-center justify-center';
             cell.textContent = num;
             cell.id = 'master-' + num;
             grid.appendChild(cell);
@@ -77,17 +74,14 @@ function buildCartelaGrid(gridId, flat) {
     for (let i = 0; i < 25; i++) {
         const num = flat[i];
         const cell = document.createElement('div');
-        cell.className = 'cartela-cell text-[10px] font-bold text-center py-1.5 rounded-sm cursor-pointer transition-all';
+        cell.className = 'cartela-cell text-[11px] font-bold text-center py-2 rounded cursor-pointer transition-all';
         cell.dataset.num = num;
         if (num === 0) {
             cell.textContent = '★';
-            cell.style.background = 'rgba(255,140,0,0.3)';
-            cell.style.color = '#FF8C00';
+            cell.classList.add('free-space');
             cell.classList.add('marked');
         } else {
             cell.textContent = num;
-            cell.style.background = 'rgba(255,255,255,0.06)';
-            cell.style.color = 'rgba(255,255,255,0.7)';
             if (calledNumbers.has(num)) {
                 markCartelaCell(cell, num);
             }
@@ -134,13 +128,12 @@ function highlightMasterNumber(num, isLast) {
 
 function addCalledNumberTag(num) {
     const strip = document.getElementById('called-tags');
+    if (!strip) return;
     const letter = getNumberLetter(num);
-    const color = getLetterColor(letter);
+    const letterLower = letter.toLowerCase();
     const el = document.createElement('span');
-    el.className = 'called-tag';
-    el.style.background = color + '22';
-    el.style.border = '1px solid ' + color + '44';
-    el.innerHTML = '<div class="tag-letter" style="color:' + color + '">' + letter + '</div>' +
+    el.className = 'called-tag tag-' + letterLower;
+    el.innerHTML = '<div class="tag-letter" style="color:inherit">' + letter + '</div>' +
                    '<div class="tag-number">' + num + '</div>';
     strip.appendChild(el);
 }

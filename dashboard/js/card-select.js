@@ -101,12 +101,12 @@ async function showCardSelection(roundId, roundData) {
     document.getElementById('card-select-screen').classList.remove('hidden');
 
     const grid = document.getElementById('card-select-grid');
-    grid.innerHTML = '<div class="text-center py-8 col-span-10"><div class="text-3xl mb-2 float-anim">🃏</div><p class="text-white/50 text-sm">Loading cartelas...</p></div>';
+    grid.innerHTML = '<div class="col-span-8 text-center py-8"><div class="text-3xl mb-2 float-anim">🃏</div><p class="text-white/50 text-sm">Loading cartelas...</p></div>';
 
     try {
         const masterSnap = await db.collection('cartelas_master').orderBy('number').get();
         if (masterSnap.empty) {
-            grid.innerHTML = '<div class="col-span-10 text-center py-12 px-4"><div class="text-4xl mb-3">😓</div><p class="text-white/80 text-sm font-bold mb-1">No Cards Generated</p><p class="text-white/40 text-xs">Admin needs to generate cartelas first.</p></div>';
+            grid.innerHTML = '<div class="col-span-8 text-center py-12 px-4"><div class="text-4xl mb-3">😓</div><p class="text-white/80 text-sm font-bold mb-1">No Cards Generated</p><p class="text-white/40 text-xs">Admin needs to generate cartelas first.</p></div>';
             return;
         }
 
@@ -117,7 +117,7 @@ async function showCardSelection(roundId, roundData) {
             const d = doc.data();
             const num = d.number;
             const cell = document.createElement('div');
-            cell.className = 'card-num';
+            cell.className = 'card-tile';
             cell.textContent = num;
             cell.dataset.num = num;
 
@@ -159,10 +159,10 @@ async function showCardSelection(roundId, roundData) {
             if (!snap.exists) return;
             const rd = snap.data();
             const nowTaken = new Set(rd.taken_cartelas || []);
-            grid.querySelectorAll('.card-num').forEach(cell => {
+            grid.querySelectorAll('.card-tile').forEach(cell => {
                 const n = parseInt(cell.dataset.num);
                 if (nowTaken.has(n) && !selectedCartelas.includes(n)) {
-                    cell.className = 'card-num taken';
+                    cell.className = 'card-tile taken';
                     cell.onclick = null;
                 }
             });
@@ -204,7 +204,7 @@ async function showCardSelection(roundId, roundData) {
         });
     } catch (err) {
         console.error('Error loading cartelas:', err);
-        grid.innerHTML = '<div class="text-center py-8"><p class="text-red-400 text-sm">Error: ' + err.message + '</p></div>';
+        grid.innerHTML = '<div class="col-span-8 text-center py-8"><p class="text-red-400 text-sm">Error: ' + err.message + '</p></div>';
     }
 }
 
@@ -212,7 +212,7 @@ function toggleCardSelection(num, cell) {
     const idx = selectedCartelas.indexOf(num);
     if (idx > -1) {
         selectedCartelas.splice(idx, 1);
-        cell.className = 'card-num';
+        cell.className = 'card-tile';
         cell.style.boxShadow = '';
         if (selectedCartelas.length > 0) {
             renderCardSelectPreview(selectedCartelas[selectedCartelas.length - 1]);
@@ -230,8 +230,7 @@ function toggleCardSelection(num, cell) {
             return;
         }
         selectedCartelas.push(num);
-        cell.className = 'card-num selected';
-        cell.style.boxShadow = '0 0 15px rgba(16,185,129,0.5)';
+        cell.className = 'card-tile selected';
         renderCardSelectPreview(num);
     }
     updateSelectedInfo();
@@ -257,21 +256,21 @@ async function renderCardSelectPreview(num) {
             for (let i = 0; i < 25; i++) {
                 const val = flat[i];
                 const cell = document.createElement('div');
-                cell.className = 'py-1.5 rounded bg-white/5 border border-white/5 text-gray-300 font-bold text-xs flex items-center justify-center';
+                cell.className = 'py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 font-bold text-xs flex items-center justify-center';
                 if (val === 0) {
                     cell.innerHTML = '✨';
-                    cell.className = 'py-1.5 rounded border border-emerald-500 text-white font-bold text-xs flex items-center justify-center bg-emerald-600';
+                    cell.className = 'py-2 rounded-lg border border-emerald-500 text-white font-bold text-xs flex items-center justify-center bg-emerald-600';
                 } else {
                     cell.textContent = val;
                 }
                 grid.appendChild(cell);
             }
         } else {
-            grid.innerHTML = '<div class="col-span-10 text-center text-xs py-2 text-red-400 font-normal">Card numbers not found</div>';
+            grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-red-400 font-normal">Card numbers not found</div>';
         }
     } catch(err) {
         console.error(err);
-        grid.innerHTML = '<div class="col-span-10 text-center text-xs py-2 text-red-500 font-normal">Error loading card</div>';
+        grid.innerHTML = '<div class="col-span-5 text-center text-xs py-2 text-red-500 font-normal">Error loading card</div>';
     }
 }
 

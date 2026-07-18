@@ -1,0 +1,150 @@
+        <!-- Header bar -->
+        <div class="px-3 py-2 flex items-center justify-between border-b border-white/5">
+            <button onclick="leaveGame(); navigateTo('home')" class="w-8 h-8 rounded-full glass flex items-center justify-center text-white/70">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <h2 class="text-sm font-semibold text-white">Yegara Bingo</h2>
+            <div class="flex items-center gap-2">
+                <button onclick="Telegram.WebApp.showPopup({title:'Yegara Bingo',message:'A fun bingo game!'})" class="w-8 h-8 rounded-full glass flex items-center justify-center text-white/70">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="10" cy="16" r="2"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Game stats bar -->
+        <div class="px-2 py-2 grid grid-cols-3 md:flex md:items-stretch gap-1.5 mb-2" id="game-info-bar">
+            <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(255,140,0,0.12); border: 1px solid rgba(255,140,0,0.25);">
+                <div class="text-[9px] text-orange-400/60 uppercase">Game ID</div>
+                <div id="game-id-display" class="text-[11px] font-bold text-orange-400">#---</div>
+            </div>
+            <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25);">
+                <div class="text-[9px] text-emerald-400/60 uppercase">Players</div>
+                <div id="game-players" class="text-[11px] font-bold text-emerald-400">1</div>
+            </div>
+            <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.25);">
+                <div class="text-[9px] text-blue-400/60 uppercase">Bet</div>
+                <div id="game-stake" class="text-[11px] font-bold text-blue-400">0</div>
+            </div>
+            <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.25);">
+                <div class="text-[9px] text-purple-400/60 uppercase">Derash</div>
+                <div id="game-derash" class="text-[11px] font-bold text-purple-400">0</div>
+            </div>
+            <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(20,184,166,0.12); border: 1px solid rgba(20,184,166,0.25);">
+                <div class="text-[9px] text-teal-400/60 uppercase">Called</div>
+                <div id="game-called-count" class="text-[11px] font-bold text-teal-400">0</div>
+            </div>
+            <div class="md:flex-1 rounded-lg px-2.5 py-1.5" style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25);">
+                <div class="text-[9px] text-red-400/60 uppercase">Timer</div>
+                <div id="game-timer" class="text-[11px] font-bold text-red-400">35</div>
+            </div>
+        </div>
+
+        <!-- Countdown banner -->
+        <div class="px-3 py-1">
+            <div id="game-countdown" class="hidden text-center rounded-xl px-4 py-3 mb-2 font-bold text-sm" style="background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(59,130,246,0.3)); border: 1px solid rgba(139,92,246,0.4); color: #c4b5fd;">Game starts in 10s — Admin choosing winners...</div>
+        </div>
+
+        <!-- Main game area: Responsive Layout -->
+        <div class="px-2 py-1 flex flex-col md:flex-row gap-3 pb-8" id="game-board-container" style="min-height: max-content;">
+            <!-- LEFT/TOP: Master Grid -->
+            <div class="w-full md:w-1/2 glass rounded-xl p-2 flex flex-col">
+                <div class="grid grid-cols-5 gap-1 mb-2" id="master-grid-headers">
+                    <div class="text-center text-xs sm:text-sm font-black py-1.5 rounded text-white shadow-sm bg-[#3B82F6]">B</div>
+                    <div class="text-center text-xs sm:text-sm font-black py-1.5 rounded text-white shadow-sm bg-[#8B5CF6]">I</div>
+                    <div class="text-center text-xs sm:text-sm font-black py-1.5 rounded text-white shadow-sm bg-[#D946EF]">N</div>
+                    <div class="text-center text-xs sm:text-sm font-black py-1.5 rounded text-white shadow-sm bg-[#10B981]">G</div>
+                    <div class="text-center text-xs sm:text-sm font-black py-1.5 rounded text-white shadow-sm bg-[#F97316]">O</div>
+                </div>
+                <div class="grid grid-cols-5 gap-1 flex-1" id="master-grid"></div>
+            </div>
+
+            <!-- RIGHT/BOTTOM: Called Tags + Circle + Cartelas -->
+            <div class="w-full md:w-1/2 glass rounded-xl p-2 flex flex-col gap-2">
+                <!-- Called number tags + Sound -->
+                <div class="flex items-center gap-1 overflow-x-auto" style="scrollbar-width: none; min-height: 28px;">
+                    <div class="flex gap-1 flex-1 overflow-x-auto" id="called-tags" style="scrollbar-width: none; flex-wrap: nowrap;"></div>
+                    <button onclick="toggleVoice()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style="background: rgba(255,255,255,0.1);">
+                        <svg id="voice-icon" class="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    </button>
+                    <button onclick="toggleMusic()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style="background: rgba(255,255,255,0.1);">
+                        <span id="music-icon" class="text-xs">🔇</span>
+                    </button>
+                </div>
+
+                <!-- Number announcement circle -->
+                <div class="flex items-center justify-center py-2" style="min-height: 80px;">
+                    <div id="number-announce" class="hidden">
+                        <div class="number-circle-outer w-20 h-20 rounded-full flex items-center justify-center" style="background: conic-gradient(#FF8C00, #FFD700, #FF8C00); padding: 3px;">
+                            <div class="w-full h-full rounded-full flex items-center justify-center" style="background: #1A1A2E;">
+                                <div class="text-center leading-none">
+                                    <div id="announce-letter" class="text-sm font-black"></div>
+                                    <div id="announce-number" class="text-2xl font-black text-white"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="number-waiting" class="text-center">
+                        <div class="text-white/20 text-xs">Waiting for numbers...</div>
+                    </div>
+                </div>
+
+                <!-- Spectator mode message -->
+                <div id="spectator-message" class="hidden flex-1 flex flex-col items-center justify-center text-center px-2">
+                    <svg class="w-12 h-12 text-white/20 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <div class="text-bingo-orange font-bold text-sm mb-1">Game in Progress</div>
+                    <div class="text-white/50 text-xs mb-2">Watching Only</div>
+                    <div class="text-white/30 text-[10px] leading-relaxed">የእርስዎ ቅርጫት አልተመረጠም<br/>ለዚህ ዙር እድሜዎ አልባ ነው</div>
+                </div>
+
+                <!-- Cartela(s) -->
+                <div id="cartela-area" class="flex-1 flex flex-col gap-1.5 overflow-y-auto min-h-0">
+                    <div id="cartela-wrap-1" class="hidden">
+                        <div class="cartela-header text-center py-1 rounded-t text-[11px] font-black text-white" style="background: linear-gradient(135deg, #FF8C00, #FF6B00);">
+                            CARTELA NO: <span id="cartela-number-1">0</span>
+                        </div>
+                        <div class="grid grid-cols-5 gap-0.5 rounded-b overflow-hidden" id="cartela-grid-headers-1">
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#3B82F6]">B</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#8B5CF6]">I</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#D946EF]">N</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#10B981]">G</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#F97316]">O</div>
+                        </div>
+                        <div class="grid grid-cols-5 gap-px rounded-b overflow-hidden" id="cartela-grid-1"></div>
+                    </div>
+                    <div id="cartela-wrap-2" class="hidden">
+                        <div class="cartela-header text-center py-1 rounded-t text-[11px] font-black text-white" style="background: linear-gradient(135deg, #FF8C00, #FF6B00);">
+                            CARTELA NO: <span id="cartela-number-2">0</span>
+                        </div>
+                        <div class="grid grid-cols-5 gap-0.5 rounded-b overflow-hidden" id="cartela-grid-headers-2">
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#3B82F6]">B</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#8B5CF6]">I</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#D946EF]">N</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#10B981]">G</div>
+                            <div class="text-center text-[9px] font-black py-0.5 text-white bg-[#F97316]">O</div>
+                        </div>
+                        <div class="grid grid-cols-5 gap-px rounded-b overflow-hidden" id="cartela-grid-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom bar -->
+        <div class="px-3 py-2 mt-auto">
+            <div class="glass rounded-xl p-2 flex items-center justify-between">
+                <button onclick="leaveGame(); navigateTo('home')" class="bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-[11px] font-semibold btn-hover flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    Leave
+                </button>
+                <button onclick="refreshGame()" class="bg-white/10 text-white/70 px-3 py-2 rounded-lg text-[11px] font-semibold btn-hover flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Refresh
+                </button>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-white/50">Automatic</span>
+                    <div id="auto-toggle" class="auto-toggle" onclick="toggleAutoMark()"></div>
+                </div>
+                <button onclick="toggleAutoMark()" class="bg-bingo-orange/20 text-bingo-orange px-3 py-2 rounded-lg text-[11px] font-semibold btn-hover">
+                    AUTOMATIC
+                </button>
+            </div>
+        </div>

@@ -1,0 +1,75 @@
+    <div class="absolute inset-0" style="background: linear-gradient(180deg, #0d0f22 0%, #151833 40%, #0d0f22 100%);"></div>
+    <div class="absolute inset-0 flex flex-col max-w-[420px] mx-auto">
+        <!-- Header matching Image 2 -->
+        <div class="px-4 pt-4 pb-2 flex items-center justify-between border-b border-white/5">
+            <button onclick="cancelCardSelect()" class="flex items-center gap-1 bg-indigo-600/90 hover:bg-indigo-700 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-md">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Back
+            </button>
+            <h3 class="text-sm font-bold text-white tracking-wide">Select Cartela</h3>
+            <button onclick="refreshCardSelect()" class="flex items-center gap-1 bg-white/10 hover:bg-white/20 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white transition-all border border-white/10">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Stats summary row matching Image 2 style -->
+        <div class="px-4 py-3 bg-[#111326]/60 border-b border-white/5 flex items-center justify-between gap-1 text-[11px] font-semibold text-gray-300">
+            <div class="flex gap-2">
+                <div class="bg-[#1E2340] border border-white/5 rounded-lg px-2 py-1 flex flex-col justify-center">
+                    <span class="text-[9px] text-gray-500 uppercase leading-none">Main Wallet</span>
+                    <span id="cs-main-wallet" class="text-white font-bold leading-normal mt-0.5">0</span>
+                </div>
+                <div class="bg-[#1E2340] border border-white/5 rounded-lg px-2 py-1 flex flex-col justify-center">
+                    <span class="text-[9px] text-gray-500 uppercase leading-none">Play Wallet</span>
+                    <span id="cs-play-wallet" class="text-[#34D399] font-bold leading-normal mt-0.5">10</span>
+                </div>
+                <div class="bg-[#1E2340] border border-white/5 rounded-lg px-2 py-1 flex flex-col justify-center">
+                    <span class="text-[9px] text-gray-500 uppercase leading-none">Stake</span>
+                    <span id="cs-stake" class="text-[#FF8C00] font-bold leading-normal mt-0.5">10</span>
+                </div>
+                <div class="bg-[#1E2340] border border-white/5 rounded-lg px-2 py-1 flex flex-col justify-center">
+                    <span class="text-[9px] text-gray-500 uppercase leading-none">Derash</span>
+                    <span id="cs-derash" class="text-[#8B5CF6] font-bold leading-normal mt-0.5">75</span>
+                </div>
+            </div>
+            <div>
+                <!-- Countdown Pill: "9 s" in green/emerald pill -->
+                <div class="bg-emerald-600 text-white font-black px-3.5 py-1.5 rounded-lg flex items-center justify-center min-w-[55px] shadow-lg shadow-emerald-600/20">
+                    <span id="cs-timer" class="text-sm font-black mr-0.5">24</span>
+                    <span class="text-xs">s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8-column cartela selection grid -->
+        <div class="flex-1 overflow-y-auto px-2 py-2 card-select-grid" id="card-select-grid"></div>
+
+        <!-- Bottom Preview area showing the selected cartela 5x5 card layout (as seen in Image 2) -->
+        <div id="cs-preview-container" class="px-4 py-2 border-t border-white/5 bg-[#0e1026] hidden">
+            <div class="text-center text-xs font-bold text-amber-400 mb-1" id="cs-preview-title">Cartela No : --</div>
+            
+            <!-- 5x5 Card Headers matching style -->
+            <div class="grid grid-cols-5 gap-1.5 max-w-[280px] mx-auto mb-1" id="cs-preview-grid-headers">
+                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-blue-500">B</div>
+                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-purple-500">I</div>
+                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-fuchsia-500">N</div>
+                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-emerald-500">G</div>
+                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-orange-500">O</div>
+            </div>
+            <!-- flat 25 numbers template layout -->
+            <div class="grid grid-cols-5 gap-1.5 max-w-[280px] mx-auto text-xs font-bold text-center pb-2" id="cs-preview-grid"></div>
+        </div>
+
+        <!-- Confirm / Info footer bar -->
+        <div class="border-t border-white/5 bg-[#0a0f1d] pb-4">
+            <div id="cs-selected-info" class="px-4 py-2 flex items-center justify-between text-xs hidden">
+                <span class="text-gray-400 font-semibold">Selected: <span id="cs-selected-count" class="text-emerald-400 font-bold">0/2</span> cards</span>
+                <span class="text-gray-400 font-semibold">Total Cost: <span id="cs-selected-total" class="text-orange-400 font-bold">0 ETB</span></span>
+            </div>
+            <div class="px-4 py-2 flex gap-3">
+                <button onclick="cancelCardSelect()" class="flex-1 bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl font-bold text-sm transition-all focus:outline-none">Cancel</button>
+                <button id="cs-confirm-btn" onclick="confirmSelection()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-600/10 focus:outline-none hidden">Confirm Selection</button>
+            </div>
+        </div>
+    </div>
