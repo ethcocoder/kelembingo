@@ -925,7 +925,7 @@ def _extract_text_from_image(image_bytes: bytes) -> dict:
     }
 
     # ── 1. Status (success/failure) ──
-    if re.search(r'ተሳክቷል|Success|Completed|✅', raw_text, re.IGNORECASE):
+    if re.search(r'ተሳክቷል|Success|Completed|✅|TAALA', raw_text, re.IGNORECASE):
         result["status"] = "success"
     elif re.search(r'አልተሳካም|Failed|Rejected|❌', raw_text, re.IGNORECASE):
         result["status"] = "failed"
