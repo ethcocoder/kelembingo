@@ -16,9 +16,7 @@ from firestore_db import MockFirestoreClient
 # ─── Constants ───
 TOTAL_CARTELAS = 500
 STAKE = 10
-PRIZE_MULTIPLIER = 7.5          # winner gets stake × 7.5 per player
 ADMIN_CUT_RATIO = 0.25          # 25% of pool goes to admin
-SELECTION_SECONDS = 35
 NUMBER_CALL_INTERVAL = 4        # seconds between each called number
 MAX_CARTELAS_PER_PLAYER = 2
 BINGO_NUMBERS = range(1, 76)    # 1-75
@@ -127,7 +125,6 @@ class RoundEngine:
             'winners': [],
             'prize_per_winner': 0,
             'admin_profit': 0,
-            'selection_deadline': now + timedelta(seconds=SELECTION_SECONDS),
             'created_at': now,
             'completed_at': None,
         }

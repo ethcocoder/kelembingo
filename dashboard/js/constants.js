@@ -1,9 +1,7 @@
 // ==================== CONSTANTS ====================
 const STAKE = 10;
 const MAX_CARTELAS = 2;
-const SELECTION_SECONDS = 35;
 const NUMBER_CALL_INTERVAL = 4000;
-const PRIZE_MULTIPLIER = 7.5;
 const ADMIN_CUT = 0.25;
 
 const BINGO_RANGES = [

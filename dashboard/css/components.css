@@ -257,9 +257,9 @@
     cursor: pointer;
     transition: all 0.15s ease;
     position: relative;
-    background: linear-gradient(135deg, #FF8C00, #FF6B00);
+    background: linear-gradient(135deg, #1E2340, #151833);
     color: white;
-    box-shadow: 0 2px 8px rgba(255,140,0,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     border: 1px solid rgba(255,255,255,0.1);
 }
 
@@ -268,11 +268,11 @@
 }
 
 .card-tile.taken {
-    background: rgba(255,140,0,0.15) !important;
-    color: rgba(255,140,0,0.4) !important;
+    background: linear-gradient(135deg, #FF8C00, #FF6B00) !important;
+    color: white !important;
     pointer-events: none;
-    box-shadow: none;
-    opacity: 0.5;
+    box-shadow: 0 2px 8px rgba(255,140,0,0.3);
+    opacity: 0.85;
 }
 
 .card-tile.selected {

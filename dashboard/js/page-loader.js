@@ -25,6 +25,7 @@ const PageLoader = {
         // Check cache first
         if (this.cache[`page:${pageName}`]) {
             target.innerHTML = this.cache[`page:${pageName}`];
+            target.setAttribute('data-page-loaded', screenName);
             this.dispatchLoadEvent(screenName);
             return;
         }
@@ -35,6 +36,7 @@ const PageLoader = {
             const html = await response.text();
             this.cache[`page:${pageName}`] = html;
             target.innerHTML = html;
+            target.setAttribute('data-page-loaded', screenName);
             this.dispatchLoadEvent(screenName);
         } catch (err) {
             console.error(`PageLoader: Error loading ${pageName}:`, err);
@@ -96,14 +98,14 @@ const PageLoader = {
         }));
     },
     
-    // Load a specific page on demand
+    // Load a specific page on demand (uses data-page-loaded attribute)
     async loadOnDemand(screenName) {
         const targetId = `screen-${screenName}`;
         const target = document.getElementById(targetId);
         if (!target) return;
         
-        // Only load if the target is empty (not already loaded)
-        if (target.innerHTML.trim() === '' || target.querySelector('.text-white\\/50')) {
+        // Only load if not already loaded
+        if (!target.getAttribute('data-page-loaded')) {
             await this.loadPage(screenName);
         }
     },

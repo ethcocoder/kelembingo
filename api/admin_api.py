@@ -12,7 +12,7 @@ import datetime
 from config import db, BOT_TOKEN
 from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFilter, Increment, ArrayUnion
 
-from game.round_engine import RoundEngine, STAKE, PRIZE_MULTIPLIER
+from game.round_engine import RoundEngine, STAKE
 from handlers.user_manager import UserManager
 from datetime import datetime, timedelta, timezone
 from telegram import Bot
@@ -81,52 +81,51 @@ async def _game_loop(round_id: str):
             if status == 'playing':
                 break  # already started (e.g. by client)
 
-            # Check if selection deadline has passed
-            deadline = data.get('selection_deadline')
-            if deadline:
-                # Parse deadline — it may be a datetime, ISO string, or dict
-                if isinstance(deadline, datetime):
-                    dl_dt = deadline
-                elif isinstance(deadline, str):
+            # Check if at least 1 player has joined
+            player_count = data.get('player_count', 0)
+            
+            if player_count > 0:
+                # Has players — auto-start the round immediately
+                now = datetime.now(tz=timezone.utc)
+                total_pool = player_count * STAKE
+                derash = total_pool * 0.75
+                
+                db.collection('rounds').document(round_id).update({
+                    'status': 'playing',
+                    'derash': derash,
+                    'game_started_at': now,
+                    'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
+                })
+                break
+            
+            # No players yet — check if round has been selecting for too long (5 min timeout)
+            created_at = data.get('created_at')
+            if created_at:
+                if isinstance(created_at, datetime):
+                    cat_dt = created_at
+                elif isinstance(created_at, str):
                     try:
-                        dl_dt = datetime.fromisoformat(deadline)
-                    except (ValueError, TypeError):
-                        dl_dt = datetime.now(tz=timezone.utc)
+                        cat_dt = datetime.fromisoformat(created_at)
+                    except:
+                        cat_dt = datetime.now(tz=timezone.utc)
                 else:
-                    dl_dt = datetime.now(tz=timezone.utc)  # fallback: start immediately
+                    cat_dt = datetime.now(tz=timezone.utc)
                 
-                # Ensure timezone-aware comparison
-                if dl_dt.tzinfo is None:
-                    dl_dt = dl_dt.replace(tzinfo=timezone.utc)
+                if cat_dt.tzinfo is None:
+                    cat_dt = cat_dt.replace(tzinfo=timezone.utc)
                 
-                if datetime.now(tz=timezone.utc) >= dl_dt:
-                    player_count = data.get('player_count', 0)
-                    
-                    if player_count == 0:
-                        # No players joined — mark completed and let monitor create new round
-                        db.collection('rounds').document(round_id).update({
-                            'status': 'completed',
-                            'winners': [],
-                            'winner_name': 'No players',
-                            'prize_per_winner': 0,
-                            'admin_profit': 0,
-                            'payout_processed': True,
-                            'completed_at': datetime.now(tz=timezone.utc),
-                        })
-                        return  # exits _game_loop, monitor will create next round
-                    
-                    # Has players — auto-start the round
-                    now = datetime.now(tz=timezone.utc)
-                    total_pool = player_count * STAKE
-                    derash = total_pool * 0.75
-                    
+                # If round has been selecting for more than 5 minutes with no players, cancel it
+                if datetime.now(tz=timezone.utc) - cat_dt > timedelta(minutes=5):
                     db.collection('rounds').document(round_id).update({
-                        'status': 'playing',
-                        'derash': derash,
-                        'game_started_at': now,
-                        'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
+                        'status': 'completed',
+                        'winners': [],
+                        'winner_name': 'No players',
+                        'prize_per_winner': 0,
+                        'admin_profit': 0,
+                        'payout_processed': True,
+                        'completed_at': datetime.now(tz=timezone.utc),
                     })
-                    break
+                    return
 
             await asyncio.sleep(1)
 

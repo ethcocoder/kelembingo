@@ -18,8 +18,6 @@ async function playNow() {
         let roundData, roundId;
         if (roundSnap.empty) {
             // No active round yet. Create one immediately so the user doesn't have to wait.
-            const now = new Date();
-            const deadline = new Date(now.getTime() + SELECTION_SECONDS * 1000);
             roundData = {
                 status: 'selecting',
                 stake: STAKE,
@@ -30,7 +28,6 @@ async function playNow() {
                 winners: [],
                 prize_per_winner: 0,
                 admin_profit: 0,
-                selection_deadline: firebase.firestore.Timestamp.fromDate(deadline),
                 created_at: firebase.firestore.FieldValue.serverTimestamp(),
                 completed_at: null,
             };
@@ -53,7 +50,7 @@ async function playNow() {
             if (roundData.players && roundData.players[String(currentUser.id)]) {
                 hideLoading();
                 showToast('Rejoining current game!');
-                navigateTo('game');
+                await navigateTo('game');
                 await loadMyCartelas(roundData);
                 listenToRound(roundId);
                 return;
@@ -61,7 +58,7 @@ async function playNow() {
                 hideLoading();
                 showToast('Round in progress! Spectator mode.');
                 isSpectator = true;
-                navigateTo('game');
+                await navigateTo('game');
                 setupGameBoard();
                 listenToRound(roundId);
                 return;
@@ -71,7 +68,7 @@ async function playNow() {
             if (roundData.players && roundData.players[String(currentUser.id)]) {
                 hideLoading();
                 showToast('You already joined this round!');
-                navigateTo('game');
+                await navigateTo('game');
                 await loadMyCartelas(roundData);
                 listenToRound(roundId);
                 return;
@@ -87,14 +84,17 @@ async function playNow() {
     }
 }
 
-// ==================== CARD SELECTION (35s timer) ====================
+// ==================== CARD SELECTION ====================
 async function showCardSelection(roundId, roundData) {
     selectedCartelas = [];
     listenerReady = false;
     updateSelectedInfo();
 
+    // Calculate estimated derash: player_count * stake * 0.75
+    const playerCount = roundData.player_count || 0;
+    const estimatedDerash = Math.round((playerCount || 1) * STAKE * 0.75);
     document.getElementById('cs-stake').textContent = STAKE + ' ETB';
-    document.getElementById('cs-derash').textContent = Math.round(STAKE * PRIZE_MULTIPLIER) + ' ETB';
+    document.getElementById('cs-derash').textContent = estimatedDerash + ' ETB';
     document.getElementById('cs-main-wallet').textContent = (currentUser.balance || 0) + ' ETB';
     document.getElementById('cs-play-wallet').textContent = (currentUser.play_wallet || 0) + ' ETB';
     document.getElementById('cs-preview-container').classList.add('hidden');
@@ -129,31 +129,6 @@ async function showCardSelection(roundId, roundData) {
             grid.appendChild(cell);
         });
 
-        const deadline = roundData.selection_deadline;
-        if (deadline) {
-            let deadlineMs;
-            if (typeof deadline === 'object' && deadline.toDate) {
-                deadlineMs = deadline.toDate().getTime();
-            } else if (typeof deadline === 'string') {
-                deadlineMs = new Date(deadline).getTime();
-            } else if (typeof deadline === 'object' && deadline._iso) {
-                deadlineMs = new Date(deadline._iso).getTime();
-            } else if (typeof deadline === 'object' && deadline.seconds) {
-                deadlineMs = deadline.seconds * 1000;
-            } else {
-                deadlineMs = new Date(deadline).getTime();
-            }
-            
-            if (isNaN(deadlineMs)) {
-                selectionDeadline = serverNow() + SELECTION_SECONDS * 1000;
-            } else {
-                selectionDeadline = deadlineMs;
-            }
-        } else {
-            selectionDeadline = serverNow() + SELECTION_SECONDS * 1000;
-        }
-        startSelectionTimer();
-
         if (roundUnsubscribe) roundUnsubscribe();
         roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(snap => {
             if (!snap.exists) return;
@@ -175,9 +150,8 @@ async function showCardSelection(roundId, roundData) {
             if (rd.status === 'completed' || rd.status === 'cancelled') {
                 const selectScreen = document.getElementById('card-select-screen');
                 if (selectScreen && !selectScreen.classList.contains('hidden')) {
-                    stopSelectionTimer();
                     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
-                    playNow(); // Auto-join the newly created round
+                    playNow();
                     return;
                 }
             }
@@ -185,20 +159,15 @@ async function showCardSelection(roundId, roundData) {
             if (rd.status === 'playing') {
                 const uid = String(currentUser.id);
                 if (rd.players && rd.players[uid]) {
-                    stopSelectionTimer();
-                    selectionHandled = true;
                     document.getElementById('card-select-screen').classList.add('hidden');
-                    navigateTo('game');
+                    await navigateTo('game');
                     loadMyCartelas(rd);
                     listenToRound(roundId);
-                } else if (!selectionHandled) {
-                    stopSelectionTimer();
-                    selectionHandled = true;
-                    if (selectedCartelas.length > 0) {
-                        confirmSelection();
-                    } else {
-                        enterSpectatorMode();
-                    }
+                } else {
+                    document.getElementById('card-select-screen').classList.add('hidden');
+                    await navigateTo('game');
+                    setupGameBoard();
+                    listenToRound(roundId);
                 }
             }
         });
@@ -289,73 +258,8 @@ function updateSelectedInfo() {
     }
 }
 
-// ==================== SELECTION TIMER ====================
-function startSelectionTimer() {
-    stopSelectionTimer();
-    selectionHandled = false;
-    const timerEl = document.getElementById('cs-timer');
-    timerEl.classList.remove('text-red-400');
-    selectionTimer = setInterval(() => {
-        const rem = Math.max(0, Math.ceil((selectionDeadline - serverNow()) / 1000));
-        timerEl.textContent = rem;
-        if (rem <= 5) timerEl.classList.add('text-red-400');
-        if (rem <= 0) {
-            stopSelectionTimer();
-            if (selectionHandled) return;
-            selectionHandled = true;
-            if (selectedCartelas.length > 0) {
-                confirmSelection();
-            } else {
-                enterSpectatorMode();
-            }
-        }
-    }, 200);
-}
-
-function stopSelectionTimer() {
-    if (selectionTimer) { clearInterval(selectionTimer); selectionTimer = null; }
-}
-
-// ==================== GAME COUNTDOWN ====================
-function startGameCountdown(nextMs) {
-    if (gameCountdownInterval) clearInterval(gameCountdownInterval);
-    const timerEl = document.getElementById('game-timer');
-    gameCountdownInterval = setInterval(() => {
-        const rem = Math.max(0, Math.ceil((nextMs - serverNow()) / 1000));
-        timerEl.textContent = rem + 's';
-        if (rem <= 1) timerEl.textContent = '...';
-        if (rem <= 0) {
-            timerEl.textContent = '...';
-            clearInterval(gameCountdownInterval);
-            gameCountdownInterval = null;
-        }
-    }, 200);
-}
-
-function stopGameCountdown() {
-    if (gameCountdownInterval) { clearInterval(gameCountdownInterval); gameCountdownInterval = null; }
-}
-
-function startSelectionCountdownOnGame(dlMs) {
-    if (gameCountdownInterval) clearInterval(gameCountdownInterval);
-    const banner = document.getElementById('game-countdown');
-    const timerEl = document.getElementById('game-timer');
-    gameCountdownInterval = setInterval(() => {
-        const rem = Math.max(0, Math.ceil((dlMs - serverNow()) / 1000));
-        banner.textContent = 'Game starts in ' + rem + 's';
-        timerEl.textContent = rem + 's';
-        if (rem <= 0) {
-            banner.textContent = 'Game starting...';
-            timerEl.textContent = '...';
-            clearInterval(gameCountdownInterval);
-            gameCountdownInterval = null;
-        }
-    }, 200);
-}
-
 // ==================== SPECTATOR / CANCEL ====================
 function cancelCardSelect() {
-    stopSelectionTimer();
     selectedCartelas = [];
     document.getElementById('cs-preview-container').classList.add('hidden');
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
@@ -364,8 +268,6 @@ function cancelCardSelect() {
 
 function enterSpectatorMode() {
     isSpectator = true;
-    stopSelectionTimer();
-    selectionHandled = true;
     document.getElementById('card-select-screen').classList.add('hidden');
     navigateTo('game');
     setupGameBoard();
@@ -385,7 +287,6 @@ function refreshCardSelect() {
 async function confirmSelection() {
     if (selectedCartelas.length === 0) { showToast('Select at least one card!'); return; }
     isSpectator = false;
-    stopSelectionTimer();
     showLoading('Joining round...');
 
     try {
@@ -436,7 +337,7 @@ async function confirmSelection() {
         hideLoading();
         document.getElementById('cs-preview-container').classList.add('hidden');
         document.getElementById('card-select-screen').classList.add('hidden');
-        navigateTo('game');
+        await navigateTo('game');
         setupGameBoard();
         listenToRound(currentRoundId);
         showToast('Joined! Waiting for game to start...');

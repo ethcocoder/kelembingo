@@ -9,7 +9,7 @@ function setupGameBoard() {
     document.getElementById('game-called-count').textContent = '0';
     document.getElementById('game-timer').textContent = '--';
     document.getElementById('game-players').textContent = '...';
-    document.getElementById('game-derash').textContent = Math.round(STAKE * PRIZE_MULTIPLIER) + ' ETB';
+    document.getElementById('game-derash').textContent = '--';
     document.getElementById('game-countdown').classList.add('hidden');
 
     // Show/hide spectator message vs cartela area
@@ -171,34 +171,16 @@ function listenToRound(roundId) {
         if (!snap.exists) return;
         const data = snap.data();
 
-        document.getElementById('game-players').textContent = data.player_count || 0;
-        document.getElementById('game-derash').textContent = Math.round((data.player_count || 0) * STAKE * 0.75) + ' ETB';
+        const playerCount = data.player_count || 0;
+        // Derash = player_count * stake * 0.75 (total pool for winners)
+        const derash = Math.round(playerCount * STAKE * 0.75);
+        document.getElementById('game-players').textContent = playerCount;
+        document.getElementById('game-derash').textContent = derash + ' ETB';
         document.getElementById('game-called-count').textContent = (data.called_numbers || []).length;
 
         if (data.status === 'selecting') {
             document.getElementById('game-countdown').classList.remove('hidden');
-            const deadline = data.selection_deadline;
-            if (deadline) {
-                let dlMs;
-                if (typeof deadline === 'object' && deadline.toDate) {
-                    dlMs = deadline.toDate().getTime();
-                } else if (typeof deadline === 'string') {
-                    dlMs = new Date(deadline).getTime();
-                } else if (typeof deadline === 'object' && deadline._iso) {
-                    dlMs = new Date(deadline._iso).getTime();
-                } else if (typeof deadline === 'object' && deadline.seconds) {
-                    dlMs = deadline.seconds * 1000;
-                } else {
-                    dlMs = new Date(deadline).getTime();
-                }
-                if (!isNaN(dlMs)) {
-                    startSelectionCountdownOnGame(dlMs);
-                } else {
-                    document.getElementById('game-countdown').textContent = 'Waiting for players...';
-                }
-            } else {
-                document.getElementById('game-countdown').textContent = 'Waiting for players...';
-            }
+            document.getElementById('game-countdown').textContent = 'Waiting for players to join...';
         } else if (data.status === 'playing') {
             document.getElementById('game-countdown').classList.add('hidden');
 
@@ -283,37 +265,13 @@ async function checkMyBingo() {
 
                         const newWinners = [...currentWinners, uidStr];
                         
-                        const userRef = db.collection('users').doc(uidStr);
-                        const userDoc = await txn.get(userRef);
-                        const ud = userDoc.data();
-                        
-                        txn.update(userRef, {
-                            wins: (ud.wins || 0) + 1,
-                            total_games: (ud.total_games || 0) + 1,
-                            is_playing: false,
-                            updated_at: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-
-                        for (const pid of Object.keys(rd.players || {})) {
-                            if (pid !== uidStr) {
-                                const ref2 = db.collection('users').doc(pid);
-                                const d2 = await txn.get(ref2);
-                                if (d2.exists) {
-                                    txn.update(ref2, {
-                                        losses: (d2.data().losses || 0) + 1,
-                                        total_games: (d2.data().total_games || 0) + 1,
-                                        is_playing: false,
-                                        updated_at: firebase.firestore.FieldValue.serverTimestamp()
-                                    });
-                                }
-                            }
-                        }
-
+                        // Mark payout_processed so server skips double-processing
                         txn.update(roundRef, {
                             status: 'completed',
                             winners: newWinners,
                             winner_name: currentUser.first_name || 'Player',
                             winning_cartela: parseInt(cartelaNum),
+                            payout_processed: true,
                             completed_at: firebase.firestore.FieldValue.serverTimestamp()
                         });
                     });
@@ -434,10 +392,10 @@ function loadMyCartelas(roundData) {
         called.forEach((num, idx) => {
             calledNumbers.add(num);
             highlightMasterNumber(num, idx === called.length - 1);
-                    addCalledNumberTag(num);
-                    const strip = document.getElementById('called-tags');
-                    if (strip) strip.scrollLeft = strip.scrollWidth;
-                    autoMarkAllCartelas(num);
+            addCalledNumberTag(num);
+            const strip = document.getElementById('called-tags');
+            if (strip) strip.scrollLeft = strip.scrollWidth;
+            autoMarkAllCartelas(num);
         });
     }).catch(err => {
         console.error('Error loading cartelas:', err);
@@ -449,10 +407,8 @@ function leaveGame() {
     isSpectator = false;
     listenerReady = false;
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
-    if (numberCallInterval) { clearInterval(numberCallInterval); numberCallInterval = null; }
     stopGameCountdown();
     if (winCountdownInterval) { clearInterval(winCountdownInterval); winCountdownInterval = null; }
-    if (selectionTimer) { stopSelectionTimer(); }
     myCartelas = {};
     calledNumbers = new Set();
     selectedCartelas = [];

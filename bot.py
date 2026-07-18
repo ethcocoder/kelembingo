@@ -129,7 +129,7 @@ async def handle_play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(
         f"💰 Your Play Wallet: *{pw} ETB*\n\n"
         f"🎯 Stake: *10 ETB* per cartela (max 2)\n"
-        f"🏆 Prize: *Stake × 7.5* per player\n\n"
+        f"🏆 Prize: *(Players × Stake × 0.75) / Winners*\n\n"
         f"Tap below to open the game:",
         reply_markup=kb, parse_mode='Markdown',
     )
