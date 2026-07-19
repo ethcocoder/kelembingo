@@ -13,14 +13,6 @@ async function playNow() {
 
         var roundData, roundId;
         if (roundSnap.empty) {
-            if (!hasBalance) {
-                hideLoading();
-                isSpectator = true;
-                await navigateTo('game');
-                setupGameBoard();
-                showToast('No active game right now. Waiting for next round...');
-                return;
-            }
             var nowMs = Date.now();
             roundData = {
                 status: 'selecting',
@@ -83,16 +75,6 @@ async function playNow() {
 
         hideLoading();
 
-        if (!hasBalance) {
-            // No balance — spectator mode
-            isSpectator = true;
-            await navigateTo('game');
-            setupGameBoard();
-            listenToRound(roundId);
-            showToast('Spectating...');
-            return;
-        }
-
         // Check if selection timer has already expired
         var deadline = roundData.selection_deadline;
         if (deadline) {
@@ -103,7 +85,7 @@ async function playNow() {
             else if (typeof deadline === 'object' && deadline.seconds) dlMs = deadline.seconds * 1000;
             else dlMs = new Date(deadline).getTime();
             if (!isNaN(dlMs) && serverNow() >= dlMs) {
-                // Timer expired — spectate if players already joined, else allow first player
+                // Timer expired — only spectate if players already joined
                 var pc = roundData.player_count || 0;
                 if (pc > 0) {
                     isSpectator = true;
@@ -116,7 +98,7 @@ async function playNow() {
             }
         }
 
-        // Has balance — show card selection, wait for timer to hit 0
+        // Show card selection, wait for timer to hit 0
         showCardSelection(roundId, roundData);
     } catch (err) {
         hideLoading();
