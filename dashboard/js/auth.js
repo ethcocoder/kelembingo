@@ -109,8 +109,13 @@ function startStatsListener() {
     });
     function refreshCompletedStats() {
         db.collection('rounds').where('status', '==', 'completed').get().then(function(snap) {
+            var count = 0;
+            snap.forEach(function(doc) {
+                var d = doc.data();
+                if ((d.player_count || 0) > 0) count++;
+            });
             var sg = document.getElementById('stat-games');
-            if (sg) sg.textContent = snap.size;
+            if (sg) sg.textContent = count;
         }).catch(function() {});
         var today = new Date(); today.setHours(0, 0, 0, 0);
         db.collection('rounds').where('status', '==', 'completed').get().then(function(snap) {

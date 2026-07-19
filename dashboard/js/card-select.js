@@ -48,6 +48,22 @@ async function playNow() {
 
         // Already playing — check if user is a player
         if (roundData.status === 'playing') {
+            var pc = roundData.player_count || 0;
+            if (pc <= 0) {
+                // 0-player round in playing state — cancel and restart
+                db.collection('rounds').doc(roundId).update({
+                    status: 'completed',
+                    winners: [],
+                    winner_name: 'No players',
+                    prize_per_winner: 0,
+                    admin_profit: 0,
+                    payout_processed: true,
+                    completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                }).catch(function() {});
+                hideLoading();
+                playNow();
+                return;
+            }
             if (roundData.players && roundData.players[String(currentUser.id)]) {
                 hideLoading();
                 showToast('Rejoining current game!');
@@ -58,7 +74,7 @@ async function playNow() {
                 listenToRound(roundId);
                 return;
             } else {
-                // Spectator mode for everyone (with or without balance)
+                // Spectator mode — only for rounds with actual players
                 hideLoading();
                 isSpectator = true;
                 await navigateTo('game');
@@ -245,6 +261,27 @@ async function showCardSelection(roundId, roundData) {
             }
 
             if (rd.status === 'playing') {
+                var livePC = rd.player_count || 0;
+                if (livePC <= 0) {
+                    // 0-player round started playing — cancel and restart
+                    if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
+                    stopSelectionCountdown();
+                    selectedCartelas = [];
+                    myCartelas = {};
+                    calledNumbers = new Set();
+                    _previewCache = {};
+                    db.collection('rounds').doc(roundId).update({
+                        status: 'completed',
+                        winners: [],
+                        winner_name: 'No players',
+                        prize_per_winner: 0,
+                        admin_profit: 0,
+                        payout_processed: true,
+                        completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                    }).catch(function() {});
+                    playNow();
+                    return;
+                }
                 var uid = String(currentUser.id);
                 if (rd.players && rd.players[uid]) {
                     document.getElementById('card-select-screen').classList.add('hidden');
@@ -254,6 +291,7 @@ async function showCardSelection(roundId, roundData) {
                         listenToRound(roundId);
                     });
                 } else {
+                    // User is in a round with players but has no cards — spectate
                     document.getElementById('card-select-screen').classList.add('hidden');
                     stopSelectionCountdown();
                     isSpectator = true;

@@ -113,11 +113,7 @@ function startSelectionCountdown(deadlineMs) {
                 var cs = document.getElementById('card-select-screen');
                 if (cs && !cs.classList.contains('hidden')) {
                     cs.classList.add('hidden');
-                    isSpectator = true;
-                    navigateTo('game').then(function() {
-                        setupGameBoard();
-                        if (currentRoundId) listenToRound(currentRoundId);
-                    });
+                    playNow();
                 }
             }
         }
@@ -270,6 +266,14 @@ function listenToRound(roundId) {
             var gc2 = document.getElementById('game-countdown');
             if (gc2) gc2.classList.add('hidden');
 
+            if (playerCount <= 0) {
+                if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
+                isSpectator = false;
+                showToast('No players in this round. Starting new game...');
+                setTimeout(async function() { await playNow(); }, 1500);
+                return;
+            }
+
             var nextAt = data.next_number_at;
             if (nextAt) {
                 var nextMs;
@@ -382,7 +386,10 @@ function handleRoundCompleted(data) {
     } else if (noWinner) {
         var winnerName = data.winner_name || '';
         if (winnerName === 'No players') {
-            showToast('No players joined this round. Starting new game...');
+            isSpectator = false;
+            showToast('No players joined. Starting new game...');
+            setTimeout(async function() { await playNow(); }, 1500);
+            return;
         } else {
             showToast('All numbers called! No winner this round.');
         }
