@@ -52,10 +52,47 @@ function playWinSound() {
     } catch(e) {}
 }
 
+function playBingoAnnouncement(cartelaNum) {
+    if (!voiceEnabled) return;
+    try {
+        var num = parseInt(cartelaNum);
+        if (num >= 1 && num <= 500) {
+            var audio = new Audio('public/audio/cartela_bingo/cartela_' + num + '.mp3');
+            audio.volume = masterVolume;
+            audio.play().catch(function() {
+                playBingoAnnouncementFallback(cartelaNum);
+            });
+        } else {
+            playBingoAnnouncementFallback(cartelaNum);
+        }
+    } catch(e) {
+        playBingoAnnouncementFallback(cartelaNum);
+    }
+}
+
+function playBingoAnnouncementFallback(cartelaNum) {
+    if (!voiceEnabled) return;
+    try {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            var msg = new SpeechSynthesisUtterance('Cartela ' + cartelaNum + ' Bingo!');
+            msg.rate = 1.0;
+            msg.pitch = 1.1;
+            msg.volume = masterVolume;
+            msg.lang = 'am-ET';
+            var voices = window.speechSynthesis.getVoices();
+            var amVoice = voices.find(function(v) { return v.lang.startsWith('am'); });
+            if (!amVoice) amVoice = voices.find(function(v) { return v.lang.startsWith('en'); });
+            if (amVoice) msg.voice = amVoice;
+            window.speechSynthesis.speak(msg);
+        }
+    } catch(e) {}
+}
+
 function toggleMusic() {
     musicEnabled = !musicEnabled;
     var el = document.getElementById('music-icon');
-    if (el) el.textContent = musicEnabled ? '🎵' : '🔇';
+    if (el) el.textContent = musicEnabled ? '\u{1F3B5}' : '\u{1F507}';
     if (musicEnabled) startBgMusic(); else stopBgMusic();
     localStorage.setItem('yegara_music', musicEnabled ? '1' : '0');
 }
@@ -96,7 +133,7 @@ function stopBgMusic() {
 }
 
 function restoreAudioSettings() {
-    if (localStorage.getItem('yegara_music') === '1') { musicEnabled = true; var m = document.getElementById('music-icon'); if (m) m.textContent = '🎵'; }
+    if (localStorage.getItem('yegara_music') === '1') { musicEnabled = true; var m = document.getElementById('music-icon'); if (m) m.textContent = '\u{1F3B5}'; }
     if (localStorage.getItem('yegara_voice') === '0') {
         voiceEnabled = false;
         var v = document.getElementById('voice-icon');

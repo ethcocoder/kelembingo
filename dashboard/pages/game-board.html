@@ -46,34 +46,41 @@
                 <div class="grid grid-cols-5 gap-px flex-1" id="master-grid" style="overflow: hidden;"></div>
             </div>
 
-            <!-- RIGHT: Row = [Called Tags + Voice/Music] | Cartela(s) -->
+            <!-- RIGHT: Stacked layout -->
             <div class="w-[55%] rounded-2xl p-2 flex flex-col order-2" style="background: rgba(26,26,46,0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.06);">
 
-                <!-- Row: Called Tags + Voice + Music + Number Circle -->
-                <div class="flex items-center gap-1 mb-1">
-                    <!-- Called tags (scrollable horizontally, takes remaining space) -->
-                    <div class="flex gap-1 flex-1 overflow-x-auto" id="called-tags" style="scrollbar-width: none; flex-wrap: nowrap;"></div>
+                <!-- Row 1: Number Circle (centered) + Voice/Music beside it -->
+                <div class="flex items-center justify-center gap-2 py-1">
                     <!-- Voice toggle -->
                     <button onclick="toggleVoice()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);">
                         <svg id="voice-icon" class="w-3.5 h-3.5 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
                     </button>
-                    <!-- Music toggle -->
-                    <button onclick="toggleMusic()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);">
-                        <span id="music-icon" class="text-[10px]">&#128263;</span>
-                    </button>
-                    <!-- Number announcement circle (inline) -->
-                    <div id="number-announce" class="hidden flex-shrink-0 ml-1">
-                        <div class="number-circle-outer rounded-full flex items-center justify-center" style="padding: 3px; width: 42px; height: 42px;">
+                    <!-- Number announcement circle -->
+                    <div id="number-announce" class="hidden">
+                        <div class="number-circle-outer rounded-full flex items-center justify-center" style="padding: 3px;">
                             <div class="w-full h-full rounded-full flex items-center justify-center" style="background: radial-gradient(circle, #1A1A2E 60%, #0D1117 100%);">
                                 <div class="text-center leading-none">
-                                    <div id="announce-letter" class="text-[9px] font-black tracking-wider"></div>
-                                    <div id="announce-number" class="text-sm font-black text-white" style="text-shadow: 0 0 10px rgba(255,215,0,0.5);"></div>
+                                    <div id="announce-letter" class="text-[11px] font-black tracking-wider"></div>
+                                    <div id="announce-number" class="text-lg font-black text-white" style="text-shadow: 0 0 10px rgba(255,215,0,0.5);"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <!-- Music toggle -->
+                    <button onclick="toggleMusic()" class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);">
+                        <span id="music-icon" class="text-[10px]">&#128263;</span>
+                    </button>
                 </div>
 
+                <!-- Separator -->
+                <div class="section-separator"></div>
+
+                <!-- Row 2: Called Numbers Strip (scrollable) -->
+                <div class="flex items-center gap-1 overflow-x-auto py-1" style="scrollbar-width: none; min-height: 22px;">
+                    <div class="flex gap-1 flex-1 overflow-x-auto" id="called-tags" style="scrollbar-width: none; flex-wrap: nowrap;"></div>
+                </div>
+
+                <!-- Separator -->
                 <div class="section-separator"></div>
 
                 <!-- Spectator mode message -->

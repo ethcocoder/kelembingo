@@ -7,7 +7,7 @@ function setupGameBoard() {
 
     var el;
     if (el = document.getElementById('game-id-display')) el.textContent = '#' + (currentRoundId || '---').substring(0, 6);
-    if (el = document.getElementById('game-stake')) el.textContent = STAKE + ' ETB';
+    if (el = document.getElementById('game-stake')) el.textContent = STAKE + ' Derash';
     if (el = document.getElementById('game-called-count')) el.textContent = '0';
     if (el = document.getElementById('game-timer')) el.textContent = '--';
     if (el = document.getElementById('game-players')) el.textContent = '...';
@@ -253,7 +253,7 @@ function listenToRound(roundId) {
         var derash = Math.round(playerCount * STAKE * 0.75 * 10) / 10;
         var el;
         if (el = document.getElementById('game-players')) el.textContent = playerCount;
-        if (el = document.getElementById('game-derash')) el.textContent = derash + ' ETB';
+        if (el = document.getElementById('game-derash')) el.textContent = derash + ' Derash';
         if (el = document.getElementById('game-called-count')) el.textContent = (data.called_numbers || []).length;
 
         if (data.status === 'selecting') {
@@ -346,6 +346,7 @@ async function checkMyBingo() {
                 if (checkBingoLocal(myCartelas[cartelaNum], calledArr)) {
                     _bingoDetected = true;
                     playWinSound();
+                    playBingoAnnouncement(cartelaNum);
                     showToast('BINGO! Waiting for confirmation...');
                     return;
                 }
@@ -382,6 +383,7 @@ function handleRoundCompleted(data) {
 
     if (isWinner) {
         playWinSound();
+        playBingoAnnouncement(data.winning_cartela);
         showWinModal(data);
     } else if (noWinner) {
         var winnerName = data.winner_name || '';
@@ -396,8 +398,8 @@ function handleRoundCompleted(data) {
         setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 4000);
     } else if (isSpectator) {
         var winnerName = data.winner_name || 'Unknown';
-        var prize = Math.round(data.prize_per_winner || 0);
-        showToast(winnerName + ' won ' + prize + ' ETB!');
+        var prize = Math.round((data.prize_per_winner || 0) * 10) / 10;
+        showToast(winnerName + ' won ' + prize + ' Derash!');
         setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 5000);
     } else {
         showToast('Game over! Better luck next time.');
@@ -411,7 +413,7 @@ function showWinModal(data) {
     var wp = document.getElementById('winner-prize');
     if (wn) wn.textContent = (currentUser ? currentUser.first_name : 'Player') || 'Player';
     if (wc) wc.textContent = data.winning_cartela || '?';
-    if (wp) wp.textContent = Math.round(data.prize_per_winner || 0) + ' ETB';
+    if (wp) wp.textContent = (Math.round((data.prize_per_winner || 0) * 10) / 10) + ' Derash';
 
     var cartelaNum = data.winning_cartela;
     var flat = myCartelas[cartelaNum];
@@ -481,7 +483,7 @@ function loadMyCartelas(roundData) {
         var pc = roundData.player_count || 0;
         var dr = Math.round(pc * STAKE * 0.75 * 10) / 10;
         if (el = document.getElementById('game-players')) el.textContent = pc;
-        if (el = document.getElementById('game-derash')) el.textContent = dr + ' ETB';
+        if (el = document.getElementById('game-derash')) el.textContent = dr + ' Derash';
         called.forEach(function(num, idx) {
             calledNumbers.add(num);
             highlightMasterNumber(num, idx === called.length - 1);
