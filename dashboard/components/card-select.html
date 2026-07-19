@@ -41,20 +41,9 @@
         <!-- 8-column cartela selection grid -->
         <div class="flex-1 overflow-y-auto px-2 py-2 card-select-grid" id="card-select-grid"></div>
 
-        <!-- Bottom Preview area showing the selected cartela 5x5 card layout (as seen in Image 2) -->
-        <div id="cs-preview-container" class="px-4 py-2 border-t border-white/5 bg-[#0e1026] hidden">
-            <div class="text-center text-xs font-bold text-amber-400 mb-1" id="cs-preview-title">Cartela No : --</div>
-            
-            <!-- 5x5 Card Headers matching style -->
-            <div class="grid grid-cols-5 gap-1.5 max-w-[280px] mx-auto mb-1" id="cs-preview-grid-headers">
-                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-blue-500">B</div>
-                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-purple-500">I</div>
-                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-fuchsia-500">N</div>
-                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-emerald-500">G</div>
-                <div class="text-center text-[10px] font-black py-0.5 rounded-md text-white bg-orange-500">O</div>
-            </div>
-            <!-- flat 25 numbers template layout -->
-            <div class="grid grid-cols-5 gap-1.5 max-w-[280px] mx-auto text-xs font-bold text-center pb-2" id="cs-preview-grid"></div>
+        <!-- Bottom Preview area showing selected cartelas -->
+        <div id="cs-preview-container" class="px-3 py-2 border-t border-white/5 bg-[#0e1026] hidden">
+            <div class="flex gap-2 justify-center" id="cs-preview-cards"></div>
         </div>
 
         <!-- Info footer bar -->

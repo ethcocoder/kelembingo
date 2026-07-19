@@ -19,7 +19,6 @@ function generateOneCartela() {
 }
 
 async function generateCartelaPool() {
-    if (!confirm('Generate the 500 fixed cartelas? This will call the API.')) return;
     console.log('[CART-DBG] API_BASE:', API_BASE);
     
     try {

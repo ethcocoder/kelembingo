@@ -298,6 +298,68 @@
     border-color: rgba(16,185,129,0.6);
 }
 
+/* ==================== DUAL CARD PREVIEW ==================== */
+.preview-card {
+    flex: 1;
+    max-width: 160px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid transparent;
+}
+.preview-card.active {
+    flex: 2;
+    max-width: 240px;
+    border-color: #FF8C00;
+    box-shadow: 0 0 16px rgba(255,140,0,0.3);
+}
+.preview-card:not(.active) {
+    opacity: 0.6;
+    transform: scale(0.95);
+}
+.preview-card-title {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: #FF8C00;
+    padding: 2px 0;
+    background: rgba(255,140,0,0.1);
+}
+.preview-card-headers {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    padding: 2px 4px;
+}
+.preview-card-headers span {
+    text-align: center;
+    font-size: 8px;
+    font-weight: 900;
+    color: white;
+    border-radius: 3px;
+    padding: 1px 0;
+}
+.preview-card-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    padding: 2px 4px 4px;
+}
+.preview-card-grid .pc-cell {
+    text-align: center;
+    font-size: 8px;
+    font-weight: 800;
+    color: #d1d5db;
+    padding: 3px 0;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+}
+.preview-card-grid .pc-cell.free {
+    color: white;
+    background: #059669;
+}
+
 /* ==================== STATS BAR ENHANCED ==================== */
 .stats-bar {
     display: flex;

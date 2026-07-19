@@ -106,9 +106,18 @@ function startSelectionCountdown(deadlineMs) {
         }
         if (remaining <= 0) {
             stopSelectionCountdown();
-            // Auto-join when timer hits 0 (user has selected cards during countdown)
             if (selectedCartelas.length > 0 && typeof confirmSelection === 'function') {
                 confirmSelection();
+            } else {
+                var cs = document.getElementById('card-select-screen');
+                if (cs && !cs.classList.contains('hidden')) {
+                    cs.classList.add('hidden');
+                    isSpectator = true;
+                    navigateTo('game').then(function() {
+                        setupGameBoard();
+                        if (currentRoundId) listenToRound(currentRoundId);
+                    });
+                }
             }
         }
     }, 200);
