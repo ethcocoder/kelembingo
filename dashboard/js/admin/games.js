@@ -2,7 +2,7 @@
 function renderGames() {
     var activeList = document.getElementById('gamesActiveList');
     var activeEmpty = document.getElementById('gamesActiveEmpty');
-    var active = allRounds.filter(function (g) { return g.status === 'selecting' || g.status === 'playing'; });
+    var active = allRounds.filter(function (g) { return (g.status === 'selecting' || g.status === 'playing') && (g.player_count || 0) > 0; });
 
     if (active.length === 0) {
         activeList.innerHTML = '';
@@ -51,7 +51,7 @@ function renderGames() {
         var tb = b.created_at ? (b.created_at.seconds || 0) : 0;
         return tb - ta;
     });
-    var completed = sorted.filter(function (g) { return g.status === 'completed'; });
+    var completed = sorted.filter(function (g) { return g.status === 'completed' && (g.player_count || 0) > 0; });
     var histBody = document.getElementById('gamesHistoryTable');
     var histEmpty = document.getElementById('gamesHistoryEmpty');
 
@@ -115,7 +115,7 @@ function confirmDeleteGame() {
 }
 
 function requestDeleteAllGames() {
-    var completed = allRounds.filter(function (g) { return g.status === 'completed'; });
+    var completed = allRounds.filter(function (g) { return g.status === 'completed' && (g.player_count || 0) > 0; });
     document.getElementById('gameDeleteAllCount').textContent = completed.length;
     openModal('deleteAllGamesModal');
 }

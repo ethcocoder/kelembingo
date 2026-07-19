@@ -89,7 +89,6 @@ async function playNow() {
             else if (typeof deadline === 'object' && deadline.seconds) dlMs = deadline.seconds * 1000;
             else dlMs = new Date(deadline).getTime();
             if (!isNaN(dlMs) && serverNow() >= dlMs) {
-                // Timer expired — only spectate if players already joined
                 var pc = roundData.player_count || 0;
                 if (pc > 0) {
                     isSpectator = true;
@@ -99,6 +98,19 @@ async function playNow() {
                     showToast('Selection ended. Spectating...');
                     return;
                 }
+                // Stale round with no players — mark completed and create new round
+                db.collection('rounds').doc(roundId).update({
+                    status: 'completed',
+                    winners: [],
+                    winner_name: 'No players',
+                    prize_per_winner: 0,
+                    admin_profit: 0,
+                    payout_processed: true,
+                    completed_at: firebase.firestore.FieldValue.serverTimestamp()
+                }).catch(function() {});
+                hideLoading();
+                playNow();
+                return;
             }
         }
 
@@ -118,7 +130,7 @@ async function showCardSelection(roundId, roundData) {
     updateSelectedInfo();
 
     var playerCount = roundData.player_count || 0;
-    var estimatedDerash = Math.round((playerCount || 1) * STAKE * 0.75);
+    var estimatedDerash = Math.round(playerCount * STAKE * 0.75);
     var el;
     if (el = document.getElementById('cs-stake')) el.textContent = STAKE + ' ETB';
     if (el = document.getElementById('cs-derash')) el.textContent = estimatedDerash + ' ETB';
@@ -207,10 +219,16 @@ async function showCardSelection(roundId, roundData) {
                 listenerReady = true;
             }
 
+            var livePlayerCount = rd.player_count || 0;
+            var liveDerash = Math.round(livePlayerCount * STAKE * 0.75);
+            var derashEl;
+            if (derashEl = document.getElementById('cs-derash')) derashEl.textContent = liveDerash + ' ETB';
+
             if (rd.status === 'completed' || rd.status === 'cancelled') {
                 var selectScreen = document.getElementById('card-select-screen');
                 if (selectScreen && !selectScreen.classList.contains('hidden')) {
                     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
+                    stopSelectionCountdown();
                     selectedCartelas = [];
                     myCartelas = {};
                     calledNumbers = new Set();
@@ -467,14 +485,9 @@ async function confirmSelection() {
         console.error('Error joining round:', err);
         var msg = err.message || '';
         if (msg.indexOf('Spectating') !== -1 || msg.indexOf('already started') !== -1 || msg.indexOf('finished') !== -1) {
-            isSpectator = true;
-            var cs = document.getElementById('card-select-screen');
-            if (cs) cs.classList.add('hidden');
-            stopSelectionCountdown();
-            await navigateTo('game');
-            setupGameBoard();
-            listenToRound(currentRoundId);
-            showToast('Round in progress. Spectating...');
+            showToast('Round ended. Finding new game...');
+            if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
+            playNow();
         } else {
             showToast('Error: ' + msg);
         }

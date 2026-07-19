@@ -380,7 +380,12 @@ function handleRoundCompleted(data) {
         playWinSound();
         showWinModal(data);
     } else if (noWinner) {
-        showToast('All numbers called! No winner this round.');
+        var winnerName = data.winner_name || '';
+        if (winnerName === 'No players') {
+            showToast('No players joined this round. Starting new game...');
+        } else {
+            showToast('All numbers called! No winner this round.');
+        }
         setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 4000);
     } else if (isSpectator) {
         var winnerName = data.winner_name || 'Unknown';

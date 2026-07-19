@@ -9,8 +9,9 @@ function processDashboardData() {
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
     allRounds.forEach(function (g) {
-        if (g.status === 'selecting' || g.status === 'playing') activeRoundsCount++;
-        totalRevenue += (g.stake || 0) * (g.player_count || 0);
+        var hasPlayers = (g.player_count || 0) > 0;
+        if ((g.status === 'selecting' || g.status === 'playing') && hasPlayers) activeRoundsCount++;
+        if (hasPlayers) totalRevenue += (g.stake || 0) * (g.player_count || 0);
         if (g.status === 'completed' && g.winners && g.winners.length > 0) {
             try {
                 var gDate = g.created_at && g.created_at.toDate ? g.created_at.toDate() : (g.created_at ? new Date(g.created_at) : null);
@@ -30,7 +31,7 @@ function processDashboardData() {
         var tb = b.created_at ? (b.created_at.seconds || 0) : 0;
         return tb - ta;
     });
-    var recent = sorted.slice(0, 10);
+    var recent = sorted.filter(function (g) { return (g.player_count || 0) > 0; }).slice(0, 10);
     var tbody = document.getElementById('recentGamesTable');
     var empty = document.getElementById('recentGamesEmpty');
     if (!tbody) return;
@@ -68,6 +69,7 @@ function buildActivityFeed(sortedRounds) {
 
     var items = [];
     sortedRounds.forEach(function (g) {
+        if ((g.player_count || 0) === 0) return;
         var id = g.id || '';
         var shortId = typeof id === 'string' ? id.substring(0, 8) : id;
         if (g.status === 'completed' && g.winners && g.winners.length > 0) {

@@ -1,10 +1,11 @@
 // ==================== REPORTS ====================
 function updateReports() {
-    var completed = allRounds.filter(function (g) { return g.status === 'completed'; });
-    var totalGames = allRounds.length;
+    var validRounds = allRounds.filter(function (g) { return (g.player_count || 0) > 0; });
+    var completed = validRounds.filter(function (g) { return g.status === 'completed'; });
+    var totalGames = validRounds.length;
     var totalStakes = 0;
     var totalPlayers = 0;
-    allRounds.forEach(function (g) {
+    validRounds.forEach(function (g) {
         totalStakes += (g.stake || 0) * (g.player_count || 0);
         totalPlayers += (g.player_count || 0);
     });
@@ -24,7 +25,7 @@ function updateReports() {
         days.push({ date: d, games: 0, revenue: 0 });
     }
 
-    allRounds.forEach(function (g) {
+    validRounds.forEach(function (g) {
         var gDate = null;
         try {
             gDate = g.created_at && g.created_at.toDate ? g.created_at.toDate() : (g.created_at ? new Date(g.created_at) : null);
