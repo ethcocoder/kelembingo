@@ -33,15 +33,18 @@ sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=ALLOWED_ORIGI
 
 app = FastAPI(title="Yegara Bingo Admin API", version="2.0.0")
 
-# Mount Socket.IO on the FastAPI app, then wrap with CORS at ASGI level
+# Add CORS middleware directly to FastAPI so it runs before any route handling
 from starlette.middleware.cors import CORSMiddleware as StarletteCORSMiddleware
-socket_app = StarletteCORSMiddleware(
-    socketio.ASGIApp(sio, app),
+app.add_middleware(
+    StarletteCORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount Socket.IO on the FastAPI app
+socket_app = socketio.ASGIApp(sio, app)
 
 engine = RoundEngine(db)
 user_manager = UserManager(db)
