@@ -485,7 +485,7 @@ async function confirmSelection() {
         console.error('Error joining round:', err);
         var msg = err.message || '';
         if (msg.indexOf('Spectating') !== -1 || msg.indexOf('already started') !== -1 || msg.indexOf('finished') !== -1) {
-            showToast('Round ended. Finding new game...');
+            showToast('Round ended just before your pick was confirmed. Finding new game...');
             if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
             playNow();
         } else {

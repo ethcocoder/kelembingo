@@ -177,7 +177,7 @@ async def _game_loop(round_id: str):
                     dl_dt = dl_dt.replace(tzinfo=timezone.utc)
                 
                 if datetime.now(tz=timezone.utc) >= dl_dt:
-                    # Timer expired — start game if players exist, else cancel
+                    # Timer expired — start game if players exist
                     player_count = data.get('player_count', 0)
                     if player_count > 0:
                         now = datetime.now(tz=timezone.utc)
@@ -191,7 +191,29 @@ async def _game_loop(round_id: str):
                         })
                         break
                     else:
-                        # No players joined — cancel
+                        # Grace period: wait 5s for late joins before cancelling
+                        await asyncio.sleep(5)
+                        recheck = db.collection('rounds').document(round_id).get()
+                        if not recheck.exists:
+                            return
+                        recheck_data = recheck.to_dict()
+                        if recheck_data.get('status') != 'selecting':
+                            # Status changed (e.g. player joined via transaction), re-enter loop
+                            continue
+                        recheck_pc = recheck_data.get('player_count', 0)
+                        if recheck_pc > 0:
+                            # Player joined during grace period — start the game
+                            now = datetime.now(tz=timezone.utc)
+                            total_pool = recheck_pc * STAKE
+                            derash = total_pool * 0.75
+                            db.collection('rounds').document(round_id).update({
+                                'status': 'playing',
+                                'derash': derash,
+                                'game_started_at': now,
+                                'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
+                            })
+                            break
+                        # Still no players — cancel
                         db.collection('rounds').document(round_id).update({
                             'status': 'completed',
                             'winners': [],
