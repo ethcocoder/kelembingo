@@ -8,7 +8,7 @@ function getTelegramUser() {
 }
 
 async function initUser() {
-    await syncServerTime();
+    await startTimeSync();
 
     if (!tg) {
         var ug = document.getElementById('user-greeting');

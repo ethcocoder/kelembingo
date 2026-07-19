@@ -95,12 +95,12 @@ function startSelectionCountdown(deadlineMs) {
     selectionCountdownInterval = setInterval(function() {
         var remaining = Math.max(0, Math.ceil((deadlineMs - serverNow()) / 1000));
         var el = document.getElementById('cs-timer');
-        if (el) el.textContent = remaining + 's';
+        if (el) el.textContent = remaining > 0 ? remaining + 's' : 'Starting...';
         var bar = document.getElementById('cs-timer-bar');
         if (bar) {
             var pct = Math.max(0, (remaining / SELECTION_DURATION) * 100);
             bar.style.width = pct + '%';
-            if (remaining <= 10) {
+            if (remaining <= 10 && remaining > 0) {
                 bar.style.background = 'linear-gradient(90deg, #EF4444, #F87171)';
             }
         }

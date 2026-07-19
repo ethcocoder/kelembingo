@@ -13,7 +13,10 @@ async function playNow() {
 
         var roundData, roundId;
         if (roundSnap.empty) {
-            var nowMs = Date.now();
+            var nowMs = serverNow();
+            selectedCartelas = [];
+            myCartelas = {};
+            calledNumbers = new Set();
             roundData = {
                 status: 'selecting',
                 stake: STAKE,
@@ -196,6 +199,9 @@ async function showCardSelection(roundId, roundData) {
                 var selectScreen = document.getElementById('card-select-screen');
                 if (selectScreen && !selectScreen.classList.contains('hidden')) {
                     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
+                    selectedCartelas = [];
+                    myCartelas = {};
+                    calledNumbers = new Set();
                     playNow();
                     return;
                 }

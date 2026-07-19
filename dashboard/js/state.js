@@ -22,6 +22,7 @@ function serverNow() {
     return Date.now() + serverTimeOffset;
 }
 
+var _timeSyncInterval = null;
 async function syncServerTime() {
     try {
         var before = Date.now();
@@ -38,6 +39,12 @@ async function syncServerTime() {
         console.warn('[TimeSync] Failed, using local clock:', e);
         serverTimeOffset = 0;
     }
+}
+
+function startTimeSync() {
+    syncServerTime();
+    if (_timeSyncInterval) clearInterval(_timeSyncInterval);
+    _timeSyncInterval = setInterval(syncServerTime, 30000);
 }
 
 // Audio state
