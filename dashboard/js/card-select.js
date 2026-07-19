@@ -52,7 +52,9 @@ async function playNow() {
                 hideLoading();
                 showToast('Rejoining current game!');
                 await navigateTo('game');
-                await loadMyCartelas(roundData);
+                var freshSnap = await db.collection('rounds').doc(roundId).get();
+                var freshData = freshSnap.exists ? freshSnap.data() : roundData;
+                await loadMyCartelas(freshData);
                 listenToRound(roundId);
                 return;
             } else {
@@ -60,6 +62,8 @@ async function playNow() {
                 hideLoading();
                 isSpectator = true;
                 await navigateTo('game');
+                var freshSpecSnap = await db.collection('rounds').doc(roundId).get();
+                var freshSpecData = freshSpecSnap.exists ? freshSpecSnap.data() : roundData;
                 setupGameBoard();
                 listenToRound(roundId);
                 showToast('Round in progress — spectating...');
@@ -72,7 +76,9 @@ async function playNow() {
             hideLoading();
             showToast('You already joined this round!');
             await navigateTo('game');
-            await loadMyCartelas(roundData);
+            var freshJoinSnap = await db.collection('rounds').doc(roundId).get();
+            var freshJoinData = freshJoinSnap.exists ? freshJoinSnap.data() : roundData;
+            await loadMyCartelas(freshJoinData);
             listenToRound(roundId);
             return;
         }
@@ -130,7 +136,7 @@ async function showCardSelection(roundId, roundData) {
     updateSelectedInfo();
 
     var playerCount = roundData.player_count || 0;
-    var estimatedDerash = Math.round(playerCount * STAKE * 0.75);
+    var estimatedDerash = Math.round(playerCount * STAKE * 0.75 * 10) / 10;
     var el;
     if (el = document.getElementById('cs-stake')) el.textContent = STAKE + ' ETB';
     if (el = document.getElementById('cs-derash')) el.textContent = estimatedDerash + ' ETB';
@@ -220,7 +226,7 @@ async function showCardSelection(roundId, roundData) {
             }
 
             var livePlayerCount = rd.player_count || 0;
-            var liveDerash = Math.round(livePlayerCount * STAKE * 0.75);
+            var liveDerash = Math.round(livePlayerCount * STAKE * 0.75 * 10) / 10;
             var derashEl;
             if (derashEl = document.getElementById('cs-derash')) derashEl.textContent = liveDerash + ' ETB';
 
@@ -473,9 +479,13 @@ async function confirmSelection() {
         hideLoading();
         var pc = document.getElementById('cs-preview-container');
         if (pc) pc.classList.add('hidden');
+        var cs = document.getElementById('card-select-screen');
+        if (cs) cs.classList.add('hidden');
         stopSelectionCountdown();
+        await navigateTo('game');
+        setupGameBoard();
+        listenToRound(currentRoundId);
         showToast('Joined! Waiting for game to start...');
-        // Stay on card-select screen — onSnapshot will navigate to game when round becomes 'playing'
     } catch (err) {
         hideLoading();
         console.error('Error joining round:', err);

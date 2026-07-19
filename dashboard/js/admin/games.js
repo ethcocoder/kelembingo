@@ -14,7 +14,7 @@ function renderGames() {
             var shortId = typeof id === 'string' ? id.substring(0, 8) : id;
             var statusDot = g.status === 'playing' ? 'bg-[#10B981] anim-live' : 'bg-[#FF8C00] anim-live';
             var calledCount = (g.called_numbers || []).length;
-            var derash = g.derash || Math.round((g.player_count || 0) * (g.stake || 10) * 0.75);
+            var derash = g.derash || (Math.round((g.player_count || 0) * (g.stake || 10) * 0.75 * 10) / 10);
 
             var playerNames = [];
             if (g.players) {

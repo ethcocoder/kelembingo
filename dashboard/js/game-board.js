@@ -254,7 +254,7 @@ function listenToRound(roundId) {
         var data = snap.data();
 
         var playerCount = data.player_count || 0;
-        var derash = Math.round(playerCount * STAKE * 0.75);
+        var derash = Math.round(playerCount * STAKE * 0.75 * 10) / 10;
         var el;
         if (el = document.getElementById('game-players')) el.textContent = playerCount;
         if (el = document.getElementById('game-derash')) el.textContent = derash + ' ETB';
@@ -469,6 +469,12 @@ function loadMyCartelas(roundData) {
     return Promise.all(promises).then(function() {
         setupGameBoard();
         var called = roundData.called_numbers || [];
+        var el;
+        if (el = document.getElementById('game-called-count')) el.textContent = called.length;
+        var pc = roundData.player_count || 0;
+        var dr = Math.round(pc * STAKE * 0.75 * 10) / 10;
+        if (el = document.getElementById('game-players')) el.textContent = pc;
+        if (el = document.getElementById('game-derash')) el.textContent = dr + ' ETB';
         called.forEach(function(num, idx) {
             calledNumbers.add(num);
             highlightMasterNumber(num, idx === called.length - 1);
