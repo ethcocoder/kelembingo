@@ -234,8 +234,11 @@ async def start_background_monitor():
         while True:
             try:
                 # Find all currently active rounds (selecting or playing)
-                selecting_docs = list(db.collection('rounds').where('status', '==', 'selecting').get())
-                playing_docs = list(db.collection('rounds').where('status', '==', 'playing').get())
+                def _read_rounds():
+                    selecting = list(db.collection('rounds').where('status', '==', 'selecting').get())
+                    playing = list(db.collection('rounds').where('status', '==', 'playing').get())
+                    return selecting, playing
+                selecting_docs, playing_docs = await asyncio.to_thread(_read_rounds)
                 
                 # Start game loops for any selecting rounds that haven't been started
                 for doc in selecting_docs:
@@ -851,8 +854,13 @@ async def broadcast_event(collection: str, doc_id: str):
     room_exact = f"{collection}:{doc_id}"
     room_collection = collection
 
-    # Send exact doc snapshot to subscribers of this specific doc
-    snap = db.collection(collection).document(doc_id).get()
+    def _read_doc():
+        return db.collection(collection).document(doc_id).get()
+
+    def _read_all():
+        return db.collection(collection).get()
+
+    snap = await asyncio.to_thread(_read_doc)
     payload = {
         "type": "snapshot",
         "collection": collection,
@@ -862,8 +870,7 @@ async def broadcast_event(collection: str, doc_id: str):
     }
     await sio.emit('snapshot', payload, room=room_exact)
 
-    # Send query snapshot to subscribers of the whole collection
-    docs = db.collection(collection).get()
+    docs = await asyncio.to_thread(_read_all)
     query_payload = {
         "type": "query_snapshot",
         "collection": collection,
@@ -874,13 +881,15 @@ async def broadcast_event(collection: str, doc_id: str):
 async def broadcast_cartelas_update():
     """Safely broadcast cartela pool update to all admin dashboards."""
     try:
-        docs = db.collection('cartelas_master').get()
-        cartela_list = [{"id": d.id, "data": d.to_dict()} for d in docs]
+        def _read_cartelas():
+            docs = db.collection('cartemas_master').get()
+            return [{"id": d.id, "data": d.to_dict()} for d in docs]
+        cartela_list = await asyncio.to_thread(_read_cartelas)
         await sio.emit('query_snapshot', {
             "type": "query_snapshot",
-            "collection": "cartelas_master",
+            "collection": "cartemas_master",
             "docs": cartela_list,
-        }, room="cartelas_master")
+        }, room="cartemas_master")
     except Exception as e:
         logger.warning(f"Error broadcasting cartelas update: {e}")
 
@@ -903,6 +912,7 @@ async def _event_broadcast_loop():
     """Poll system_events table and push Socket.IO updates to subscribed clients."""
     last_id = ""
     while True:
+        sess = None
         try:
             sess = SessionLocal()
             events = sess.query(SystemEvent)
@@ -915,9 +925,11 @@ async def _event_broadcast_loop():
                     await broadcast_event(ev.collection, ev.doc_id)
                 except Exception as ev_err:
                     logger.warning(f"Error broadcasting event {ev.collection}/{ev.doc_id}: {ev_err}")
-            sess.close()
         except Exception as e:
             logger.warning(f"Error in event broadcast loop: {e}")
+        finally:
+            if sess:
+                sess.close()
         await asyncio.sleep(0.5)
 
 

@@ -73,7 +73,7 @@ class RoundEngine:
         batch_size = 100
         generated = 0
         for start in range(1, TOTAL_CARTELAS + 1, batch_size):
-            batch = self.db.batch()
+            batch = self.db.batch(skip_events=True)
             end = min(start + batch_size, TOTAL_CARTELAS + 1)
             for num in range(start, end):
                 cartela = self._generate_single_cartela(num * 1337)

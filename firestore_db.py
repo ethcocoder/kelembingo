@@ -4,6 +4,7 @@ import json
 import uuid
 import datetime
 import logging
+import sqlalchemy
 from sqlalchemy import create_engine, Column, String, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -17,7 +18,16 @@ elif DATABASE_URL.startswith("postgres://"):
     # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+engine = create_engine(
+    DATABASE_URL, 
+    pool_pre_ping=True,
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
+    pool_timeout=30,
+)
+if "sqlite" in DATABASE_URL:
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL"))
+        conn.execute(sqlalchemy.text("PRAGMA busy_timeout=30000"))
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -94,8 +104,8 @@ class MockFirestoreClient:
     def transaction(self):
         return Transaction(SessionLocal())
 
-    def batch(self):
-        return WriteBatch()
+    def batch(self, skip_events=False):
+        return WriteBatch(skip_events=skip_events)
 
 class Transaction:
     def __init__(self, session):
@@ -132,23 +142,27 @@ def transactional(func):
     return wrapper
 
 class WriteBatch:
-    def __init__(self):
+    def __init__(self, skip_events=False):
         self._session = SessionLocal()
         self._operations = []
+        self._skip_events = skip_events
 
     def set(self, ref, data, merge=False):
         ref._session = self._session
         ref._in_batch = True
+        ref._skip_events = self._skip_events
         self._operations.append(lambda: ref.set(data, merge=merge))
 
     def update(self, ref, data):
         ref._session = self._session
         ref._in_batch = True
+        ref._skip_events = self._skip_events
         self._operations.append(lambda: ref.update(data))
 
     def delete(self, ref):
         ref._session = self._session
         ref._in_batch = True
+        ref._skip_events = self._skip_events
         self._operations.append(lambda: ref.delete())
 
     def commit(self):
@@ -292,6 +306,7 @@ class DocumentRef:
         self.id = str(doc_id)
         self._session = session
         self._in_batch = False
+        self._skip_events = False
 
     def get(self, transaction=None):
         sess = self._session or SessionLocal()
@@ -337,17 +352,19 @@ class DocumentRef:
                 )
                 sess.add(db_doc)
             
-            event = SystemEvent(
-                id=str(uuid.uuid4()),
-                collection=self.collection_name,
-                doc_id=self.id,
-                event_type='set'
-            )
-            sess.add(event)
+            if not self._skip_events:
+                event = SystemEvent(
+                    id=str(uuid.uuid4()),
+                    collection=self.collection_name,
+                    doc_id=self.id,
+                    event_type='set'
+                )
+                sess.add(event)
             if not self._in_batch:
                 sess.commit()
             else:
                 self._in_batch = False
+                self._skip_events = False
         except Exception:
             sess.rollback()
             raise
@@ -391,17 +408,19 @@ class DocumentRef:
             
             db_doc.data = json.dumps(curr)
             
-            event = SystemEvent(
-                id=str(uuid.uuid4()),
-                collection=self.collection_name,
-                doc_id=self.id,
-                event_type='update'
-            )
-            sess.add(event)
+            if not self._skip_events:
+                event = SystemEvent(
+                    id=str(uuid.uuid4()),
+                    collection=self.collection_name,
+                    doc_id=self.id,
+                    event_type='update'
+                )
+                sess.add(event)
             if not self._in_batch:
                 sess.commit()
             else:
                 self._in_batch = False
+                self._skip_events = False
         except Exception:
             sess.rollback()
             raise
@@ -419,17 +438,19 @@ class DocumentRef:
             if db_doc:
                 sess.delete(db_doc)
             
-            event = SystemEvent(
-                id=str(uuid.uuid4()),
-                collection=self.collection_name,
-                doc_id=self.id,
-                event_type='delete'
-            )
-            sess.add(event)
+            if not self._skip_events:
+                event = SystemEvent(
+                    id=str(uuid.uuid4()),
+                    collection=self.collection_name,
+                    doc_id=self.id,
+                    event_type='delete'
+                )
+                sess.add(event)
             if not self._in_batch:
                 sess.commit()
             else:
                 self._in_batch = False
+                self._skip_events = False
         except Exception:
             sess.rollback()
             raise
