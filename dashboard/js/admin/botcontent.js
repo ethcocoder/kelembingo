@@ -23,7 +23,7 @@ var BOT_CONTENT_DEFAULTS = {
         deposit_ask_name: { label: 'Ask TeleBirr Name', default: '💰 Please enter your TeleBirr name\n(The name registered on your TeleBirr account):', vars: '' },
         deposit_ask_amount: { label: 'Ask Amount', default: '💰 Enter deposit amount (ETB):', vars: '' },
         deposit_send_to: { label: 'Send To (shows phone)', default: '📱 Send {amount} ETB to this TeleBirr number:\n\n📞 *{phone}*\n\nAfter sending, enter the Transaction Number from your receipt:', vars: 'amount, phone' },
-        deposit_phone: { label: 'Deposit Phone Number', default: '0911000000', vars: '' },
+        deposit_phone: { label: 'Admin Phone Number (For Deposits)', default: '0911000000', vars: '' },
         deposit_min_amount: { label: 'Min Amount Error', default: '⚠️ Minimum deposit is 10 ETB. Enter again:', vars: '' },
         deposit_invalid_number: { label: 'Invalid Number', default: '❌ Enter a valid number:', vars: '' },
         deposit_admin_offline: { label: 'Deposit - Admin Offline', default: '⚠️ Admin is offline. Please try again later.', vars: '' },
@@ -115,21 +115,12 @@ var VAR_LABELS = {
 
 function toDisplay(text) {
     if (!text) return '';
-    return text.replace(/\{(\w+)\}/g, function(match, key) {
-        var label = VAR_LABELS[key] || key;
-        return '«' + label + '»';
-    });
+    return text;
 }
 
 function toBackend(text) {
     if (!text) return '';
-    return text.replace(/«([^»]+)»/g, function(match, label) {
-        var key = null;
-        Object.keys(VAR_LABELS).forEach(function(k) {
-            if (VAR_LABELS[k] === label) key = k;
-        });
-        return key ? ('{' + key + '}') : match;
-    });
+    return text;
 }
 
 function generatePreview(text) {
@@ -172,7 +163,7 @@ function loadBotCategory(cat) {
         var helperHtml = '';
         if (hasVars) {
             helperHtml = '<div class="mt-2 px-1 py-1.5 rounded-lg" style="background: rgba(139,92,246,0.06); border: 1px solid rgba(139,92,246,0.1);">' +
-                '<p class="text-[10px] text-purple-300/70">ℹ️ Words wrapped like «Balance» and «Name» are filled automatically with real data. Don\'t change them.</p>' +
+                '<p class="text-[10px] text-purple-300/70">ℹ️ Variables like {balance} and {name} are filled automatically with real data. You can edit them freely.</p>' +
                 '</div>';
         }
 

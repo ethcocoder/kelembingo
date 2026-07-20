@@ -10,7 +10,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
-from firestore_db import FieldFilter, transactional as firestore_transactional
+from firestore_db import FieldFilter, transactional as firestore_transactional, Increment, ArrayUnion
 from firestore_db import MockFirestoreClient
 
 logger = logging.getLogger(__name__)
@@ -230,28 +230,21 @@ class RoundEngine:
             'updated_at': datetime.now(tz=timezone.utc),
         })
 
-        # Add to round
-        players = round_data.get('players', {})
-        players[uid_str] = {
-            'cartelas': cartela_numbers,
-            'name': user_name,
-            'joined_at': datetime.now(tz=timezone.utc).isoformat(),
-        }
-        new_taken = taken + cartela_numbers
-
-        cartela_count = sum(len(p.get('cartelas', [])) for p in players.values())
-
         self.rounds_ref.document(round_id).update({
-            'players': players,
-            'player_count': cartela_count,
-            'taken_cartelas': new_taken,
+            f'players.{uid_str}': {
+                'cartelas': cartela_numbers,
+                'name': user_name,
+                'joined_at': datetime.now(tz=timezone.utc).isoformat(),
+            },
+            'player_count': Increment(len(cartela_numbers)),
+            'taken_cartelas': ArrayUnion(cartela_numbers),
         })
 
         return {
             'status': 'joined',
             'cost': total_cost,
             'cartelas': cartela_numbers,
-            'player_count': cartela_count,
+            'player_count': round_data.get('player_count', 0) + len(cartela_numbers),
         }
 
     async def start_round(self, round_id: str) -> dict:

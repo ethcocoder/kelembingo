@@ -478,56 +478,20 @@ async function confirmSelection() {
     showLoading('Joining round...');
 
     try {
-        var totalCost = selectedCartelas.length * currentStake;
-        var uidStr = String(currentUser.id);
-        var roundRef = db.collection('rounds').doc(currentRoundId);
-        var userRef = db.collection('users').doc(uidStr);
-
-        await db.runTransaction(async function(txn) {
-            var roundSnap = await txn.get(roundRef);
-            var userSnap = await txn.get(userRef);
-            if (!roundSnap.exists) throw new Error('Round not found.');
-            var rd = roundSnap.data();
-            if (rd.status !== 'selecting') throw new Error('Round already started or finished.');
-            // Block join if selection timer expired and round already has players
-            var dl = rd.selection_deadline;
-            if (dl) {
-                var dlMs;
-                if (typeof dl === 'object' && dl.toDate) dlMs = dl.toDate().getTime();
-                else if (typeof dl === 'string') dlMs = new Date(dl).getTime();
-                else if (typeof dl === 'object' && dl._iso) dlMs = new Date(dl._iso).getTime();
-                else if (typeof dl === 'object' && dl.seconds) dlMs = dl.seconds * 1000;
-                else dlMs = new Date(dl).getTime();
-                if (!isNaN(dlMs) && serverNow() >= dlMs) {
-                    var pc = rd.player_count || 0;
-                    if (pc > 0) throw new Error('Selection ended. Spectating.');
-                }
-            }
-            if (rd.players && rd.players[uidStr]) throw new Error('Already joined.');
-            var pw = userSnap.data().play_wallet || 0;
-            if (pw < totalCost) throw new Error('Not enough balance.');
-
-            txn.update(userRef, {
-                play_wallet: pw - totalCost,
-                is_playing: true,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            var players = rd.players || {};
-            players[uidStr] = {
-                cartelas: selectedCartelas,
-                name: currentUser.first_name || 'Player',
-                joined_at: new Date().toISOString()
-            };
-            var takenSet = new Set(rd.taken_cartelas || []);
-            selectedCartelas.forEach(function(n) { takenSet.add(n); });
-
-            txn.update(roundRef, {
-                players: players,
-                player_count: Object.values(players).reduce(function(sum, p) { return sum + (p.cartelas ? p.cartelas.length : 0); }, 0),
-                taken_cartelas: Array.from(takenSet),
-            });
+        var res = await fetch('/api/rounds/' + currentRoundId + '/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                cartela_numbers: selectedCartelas,
+                user_name: currentUser.first_name || 'Player'
+            })
         });
+
+        var data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || data.error || 'Error joining round');
+        }
 
         for (var i = 0; i < selectedCartelas.length; i++) {
             var num = selectedCartelas[i];
