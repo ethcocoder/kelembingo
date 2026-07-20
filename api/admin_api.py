@@ -1002,7 +1002,7 @@ async def get_bot_content():
 
 
 @app.post("/api/admin/bot-content/{key}")
-async def save_bot_content(key: str, req: DocSetRequest):
+async def save_bot_content(key: str, req: SettingsRequest):
     """Save a bot content message."""
     from handlers.bot_content import invalidate_cache
     db.collection('bot_content').document(key).set(req.data, merge=True)
