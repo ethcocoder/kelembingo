@@ -110,6 +110,7 @@ class UserManager:
         try:
             from datetime import timedelta
             from handlers.bot_content import get_config_value
+            import traceback
 
             # Read live config from Firestore (admin-editable via Config tab)
             min_withdraw = get_config_value('cfg_min_withdraw', self.db, as_type=int)
@@ -125,36 +126,43 @@ class UserManager:
             if not user.get('phone'):
                 return {'ok': False, 'error': 'no_phone'}
 
-            bal = user.get('balance', 0)
-            if amount < min_withdraw:
+            bal = float(user.get('balance', 0))
+            if float(amount) < min_withdraw:
                 return {'ok': False, 'error': 'below_min', 'min': min_withdraw, 'balance': bal}
-            if amount > bal:
+            if float(amount) > bal:
                 return {'ok': False, 'error': 'insufficient', 'balance': bal}
-            if amount > max_withdraw:
+            if float(amount) > max_withdraw:
                 return {'ok': False, 'error': 'above_max', 'max': max_withdraw}
 
             created = user.get('created_at')
             if created:
-                if hasattr(created, 'tzinfo') and not created.tzinfo:
-                    created = created.replace(tzinfo=timezone.utc)
-                account_age = datetime.now(tz=timezone.utc) - created
-                if account_age < timedelta(days=1):
-                    return {'ok': False, 'error': 'account_new'}
+                # Firestore sometimes returns created as ISO string if we mock it, or timestamp.
+                if isinstance(created, str):
+                    try:
+                        created = datetime.fromisoformat(created.replace('Z', '+00:00'))
+                    except Exception:
+                        pass
+                if isinstance(created, datetime):
+                    if not created.tzinfo:
+                        created = created.replace(tzinfo=timezone.utc)
+                    account_age = datetime.now(tz=timezone.utc) - created
+                    if account_age < timedelta(days=1):
+                        return {'ok': False, 'error': 'account_new'}
 
             try:
                 approved_deposits = list(self.db.collection('deposits').where('userId', '==', str(user_id)).where('status', '==', 'approved').get())
-                total_deposited = sum(d.to_dict().get('amount', 0) for d in approved_deposits)
+                total_deposited = sum(float(d.to_dict().get('amount', 0)) for d in approved_deposits)
                 if total_deposited < min_initial_deposit:
                     return {'ok': False, 'error': 'deposit_required', 'min_deposit': min_initial_deposit, 'current_deposit': total_deposited}
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).error(f"Error checking deposits: {e}")
 
             try:
                 pending = list(self.db.collection('withdrawals').where('userId', '==', str(user_id)).where('status', '==', 'pending').limit(1).get())
                 if pending:
                     return {'ok': False, 'error': 'pending_exists'}
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).error(f"Error checking pending withdrawals: {e}")
 
             try:
                 today_start = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -164,35 +172,53 @@ class UserManager:
                     dd = d.to_dict()
                     if dd.get('status') in ('pending', 'approved'):
                         created_at = dd.get('createdAt')
-                        if created_at:
-                            if hasattr(created_at, 'tzinfo') and not created_at.tzinfo:
+                        if isinstance(created_at, str):
+                            try:
+                                created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            except Exception:
+                                pass
+                        if isinstance(created_at, datetime):
+                            if not created_at.tzinfo:
                                 created_at = created_at.replace(tzinfo=timezone.utc)
                             if created_at >= today_start:
                                 today_count += 1
                 if today_count >= max_per_day:
                     return {'ok': False, 'error': 'daily_limit', 'limit': max_per_day}
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger(__name__).error(f"Error checking daily limit: {e}")
 
             try:
                 recent_docs = list(self.db.collection('withdrawals').where('userId', '==', str(user_id)).get())
                 if recent_docs:
-                    sorted_docs = sorted(recent_docs, key=lambda d: d.to_dict().get('createdAt') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-                    last = sorted_docs[0].to_dict()
-                    last_time = last.get('processedAt') or last.get('createdAt')
-                    if last_time:
-                        if hasattr(last_time, 'tzinfo') and not last_time.tzinfo:
-                            last_time = last_time.replace(tzinfo=timezone.utc)
-                        cooldown_end = last_time + timedelta(hours=cooldown_hours)
-                        if datetime.now(tz=timezone.utc) < cooldown_end:
-                            remaining = (cooldown_end - datetime.now(tz=timezone.utc)).total_seconds() / 60
-                            return {'ok': False, 'error': 'cooldown', 'minutes': int(remaining), 'hours': cooldown_hours}
-            except Exception:
-                pass
+                    # Filter and sort safely
+                    valid_docs = []
+                    for doc in recent_docs:
+                        d = doc.to_dict()
+                        t = d.get('processedAt') or d.get('createdAt')
+                        if isinstance(t, str):
+                            try:
+                                t = datetime.fromisoformat(t.replace('Z', '+00:00'))
+                            except Exception:
+                                t = datetime.min.replace(tzinfo=timezone.utc)
+                        if getattr(t, 'tzinfo', None) is None and isinstance(t, datetime):
+                            t = t.replace(tzinfo=timezone.utc)
+                        valid_docs.append((t, d))
+
+                    valid_docs.sort(key=lambda x: x[0], reverse=True)
+                    if valid_docs:
+                        last_time, last = valid_docs[0]
+                        if isinstance(last_time, datetime):
+                            cooldown_end = last_time + timedelta(hours=cooldown_hours)
+                            if datetime.now(tz=timezone.utc) < cooldown_end:
+                                remaining = (cooldown_end - datetime.now(tz=timezone.utc)).total_seconds() / 60
+                                return {'ok': False, 'error': 'cooldown', 'minutes': int(remaining), 'hours': cooldown_hours}
+            except Exception as e:
+                import logging; logging.getLogger(__name__).error(f"Error checking cooldown: {e}")
 
             return {'ok': True}
         except Exception as e:
-            return {'ok': True}
+            import logging; logging.getLogger(__name__).error(f"CRITICAL ERROR in validate_withdrawal: {e}\n{traceback.format_exc()}")
+            return {'ok': False, 'error': 'system_error'}
 
     async def get_user_history(self, user_id: int, limit: int = 10) -> list:
         games = self.db.collection('games').where('user_id', '==', user_id).order_by('created_at', 'DESCENDING').limit(limit).get()
