@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: yegarabingo
+    name: kelembingo
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -12,7 +12,7 @@ services:
     autoDeploy: true
 
   - type: web
-    name: yegara-bingo-api
+    name: kelem-bingo-api
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile

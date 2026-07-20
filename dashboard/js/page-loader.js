@@ -1,4 +1,4 @@
-// Page Loader System for Yegara Bingo
+// Page Loader System for Kelem Bingo
 // Dynamically loads HTML pages and components into the shell game.html
 
 const PageLoader = {

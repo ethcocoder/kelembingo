@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Determine DATABASE_URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///yegarabingo.db"
+    DATABASE_URL = "sqlite:///kelembingo.db"
 elif DATABASE_URL.startswith("postgres://"):
     # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)

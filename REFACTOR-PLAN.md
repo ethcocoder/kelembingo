@@ -1,4 +1,4 @@
-# Yegara Bingo - UI Clone & Refactor Plan
+# Kelem Bingo - UI Clone & Refactor Plan
 
 ## Overview
 Split the monolithic `game.html` (653 lines) into modular HTML files, restructure JS connections, and implement a cloned UI design inspired by two reference bingo apps (Yehulu Bingo & Beteseb Bingo).

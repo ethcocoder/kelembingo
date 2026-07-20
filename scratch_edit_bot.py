@@ -25,7 +25,7 @@ MAIN_INLINE_KEYBOARD = InlineKeyboardMarkup(
 
     # 2. Update `start` handler
     start_replacement = """    text = (
-        "👋 Welcome to Yegara Bingo! Choose an Option below."
+        "👋 Welcome to Kelem Bingo! Choose an Option below."
     )
     banner_path = os.path.join(ASSETS_DIR, 'welcome_banner.png')
     if os.path.exists(banner_path):
@@ -48,7 +48,7 @@ MAIN_INLINE_KEYBOARD = InlineKeyboardMarkup(
     
     # We regex replace the specific text in start
     content = re.sub(
-        r'text\s*=\s*\(\s*f"👋 Welcome to Yegara Bingo[^\)]*\)\n.*?\(Click Play below to start the game\)"\n\s*\)',
+        r'text\s*=\s*\(\s*f"👋 Welcome to Kelem Bingo[^\)]*\)\n.*?\(Click Play below to start the game\)"\n\s*\)',
         start_replacement,
         content,
         flags=re.DOTALL
@@ -92,8 +92,8 @@ MAIN_INLINE_KEYBOARD = InlineKeyboardMarkup(
     app.add_handler(CallbackQueryHandler(handle_instruction, pattern="^menu_instruction$"))
     app.add_handler(CallbackQueryHandler(handle_support, pattern="^menu_support$"))
 """
-    # Inject before `logger.info("🎯 Yegara Bingo Bot starting...")`
-    content = content.replace('logger.info("🎯 Yegara Bingo Bot starting...")', new_handlers + '\n    logger.info("🎯 Yegara Bingo Bot starting...")')
+    # Inject before `logger.info("🎯 Kelem Bingo Bot starting...")`
+    content = content.replace('logger.info("🎯 Kelem Bingo Bot starting...")', new_handlers + '\n    logger.info("🎯 Kelem Bingo Bot starting...")')
 
     # Update ConversationHandler entry points
     # PLAY

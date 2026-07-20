@@ -218,7 +218,7 @@ class GameEngine:
 
     def format_game_board(self, cartela, called_numbers, stake, play_wallet):
         """Format the game board for display"""
-        header = f"🎯 *Yegara Bingo*\n"
+        header = f"🎯 *Kelem Bingo*\n"
         header += f"💰 Stake: {stake} ETB | Play Wallet: {play_wallet} ETB\n"
         header += f"⏰ Timer: 35s\n\n"
 

@@ -101,7 +101,7 @@ function toggleMusic() {
     if (onIcon) onIcon.classList.toggle('hidden', !musicEnabled);
     if (offIcon) offIcon.classList.toggle('hidden', musicEnabled);
     if (musicEnabled) startBgMusic(); else stopBgMusic();
-    localStorage.setItem('yegara_music', musicEnabled ? '1' : '0');
+    localStorage.setItem('kelem_music', musicEnabled ? '1' : '0');
 }
 
 function toggleVoice() {
@@ -114,14 +114,14 @@ function toggleVoice() {
     }
     if (onIcon) onIcon.classList.toggle('hidden', !voiceEnabled);
     if (offIcon) offIcon.classList.toggle('hidden', voiceEnabled);
-    localStorage.setItem('yegara_voice', voiceEnabled ? '1' : '0');
+    localStorage.setItem('kelem_voice', voiceEnabled ? '1' : '0');
 }
 
 function setVolume(val) {
     masterVolume = val / 100;
     var slider = document.getElementById('volume-slider');
     if (slider) slider.style.setProperty('--vol-pct', val + '%');
-    localStorage.setItem('yegara_volume', val);
+    localStorage.setItem('kelem_volume', val);
     if (bgMusicAudio) bgMusicAudio.volume = masterVolume * 0.3;
 }
 
@@ -140,7 +140,7 @@ function stopBgMusic() {
 }
 
 function restoreAudioSettings() {
-    if (localStorage.getItem('yegara_music') === '1') {
+    if (localStorage.getItem('kelem_music') === '1') {
         musicEnabled = true;
         var btn = document.getElementById('btn-music');
         var onIcon = document.getElementById('music-on');
@@ -149,7 +149,7 @@ function restoreAudioSettings() {
         if (onIcon) onIcon.classList.remove('hidden');
         if (offIcon) offIcon.classList.add('hidden');
     }
-    if (localStorage.getItem('yegara_voice') === '0') {
+    if (localStorage.getItem('kelem_voice') === '0') {
         voiceEnabled = false;
         var vbtn = document.getElementById('btn-voice');
         var von = document.getElementById('voice-on');
@@ -161,6 +161,6 @@ function restoreAudioSettings() {
         var vbtn2 = document.getElementById('btn-voice');
         if (vbtn2) vbtn2.classList.add('active');
     }
-    var vol = localStorage.getItem('yegara_volume');
+    var vol = localStorage.getItem('kelem_volume');
     if (vol) { masterVolume = parseInt(vol) / 100; var s = document.getElementById('volume-slider'); if (s) { s.value = vol; s.style.setProperty('--vol-pct', vol + '%'); } }
 }

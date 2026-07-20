@@ -1,5 +1,5 @@
 // ============================================================
-// Yegara Bingo – Client-Side Firestore Emulator
+// Kelem Bingo – Client-Side Firestore Emulator
 // Replaces the Google Firebase SDK with REST + Socket.IO calls
 // to our FastAPI backend (firestore_db / admin_api.py).
 // All existing firebase.js consumers remain unchanged.
@@ -24,7 +24,7 @@
     var socket = null;
     try {
         if (typeof io === 'undefined') {
-            console.warn('[Yegara Bingo] Socket.IO library not loaded (CDN failed). Real-time updates disabled.');
+            console.warn('[Kelem Bingo] Socket.IO library not loaded (CDN failed). Real-time updates disabled.');
         } else if (API_BASE && API_BASE !== 'null' && API_BASE !== 'about:' && API_BASE !== 'about:blank' && API_BASE !== '') {
             socket = io(API_BASE, {
                 transports: ['polling'],
@@ -34,21 +34,21 @@
             });
         }
     } catch(e) {
-        console.warn('[Yegara Bingo] Socket.IO init failed, falling back to polling:', e);
+        console.warn('[Kelem Bingo] Socket.IO init failed, falling back to polling:', e);
         socket = null;
     }
 
     if (socket) {
         socket.on('connect', function() {
-            console.log('[Yegara Bingo] Socket.IO connected:', socket.id);
+            console.log('[Kelem Bingo] Socket.IO connected:', socket.id);
         });
 
         socket.on('disconnect', function() {
-            console.log('[Yegara Bingo] Socket.IO disconnected');
+            console.log('[Kelem Bingo] Socket.IO disconnected');
         });
 
         socket.on('reconnect', function() {
-            console.log('[Yegara Bingo] Socket.IO reconnected');
+            console.log('[Kelem Bingo] Socket.IO reconnected');
         });
     }
 
@@ -361,5 +361,5 @@
     // Expose socket for cartela pool real-time updates
     window._bingoSocket = socket;
 
-    console.log('[Yegara Bingo] Socket.IO bridge loaded. API:', API_BASE, '| Socket:', socket ? 'connected' : 'disabled (REST-only mode)');
+    console.log('[Kelem Bingo] Socket.IO bridge loaded. API:', API_BASE, '| Socket:', socket ? 'connected' : 'disabled (REST-only mode)');
 })();

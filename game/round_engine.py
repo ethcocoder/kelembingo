@@ -1,5 +1,5 @@
 """
-Yegara Bingo — Round-Based Multiplayer Engine
+Kelem Bingo — Round-Based Multiplayer Engine
 =============================================
 Manages 500 fixed cartelas, round lifecycle, number calling, bingo checking,
 and prize distribution.

@@ -23,15 +23,15 @@ from telegram import Bot
 logger = logging.getLogger(__name__)
 
 ALLOWED_ORIGINS = [
-    "https://yegarabingo.onrender.com",
-    "https://yegara-bingo-api.onrender.com",
+    "https://kelembingo.onrender.com",
+    "https://kelem-bingo-api.onrender.com",
 ]
 
 
 # ─── Socket.IO Server ───
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=ALLOWED_ORIGINS)
 
-app = FastAPI(title="Yegara Bingo Admin API", version="2.0.0")
+app = FastAPI(title="Kelem Bingo Admin API", version="2.0.0")
 
 
 

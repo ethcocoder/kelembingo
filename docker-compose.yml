@@ -3,7 +3,7 @@ version: '3.8'
 services:
   bingo-bot:
     build: .
-    container_name: yegara-bingo
+    container_name: kelem-bingo
     restart: always
     ports:
       - "8000:8000"

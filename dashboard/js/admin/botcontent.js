@@ -5,13 +5,13 @@ var _currentBotCategory = 'welcome';
 var BOT_CONTENT_DEFAULTS = {
     welcome: {
         welcome_registered: { label: 'Welcome (Registered User)', default: '👋 Welcome back, {name}!\n\n💰 Main Wallet: *{balance} ETB*\n🎮 Play Wallet: *{play_wallet} ETB*\n\nTap Play to start the game!', vars: 'name, balance, play_wallet' },
-        welcome_new: { label: 'Welcome (New User)', default: '👋 Welcome to Yegara Bingo! Choose an Option below.', vars: '' },
+        welcome_new: { label: 'Welcome (New User)', default: '👋 Welcome to Kelem Bingo! Choose an Option below.', vars: '' },
         welcome_new_amharic: { label: 'Welcome Amharic', default: '🎮 ጨዋታውን ለመጀመር ከታች ያለውን Play የሚለውን ይጫኑ::\n(Click Play below to start the game)', vars: '' },
     },
     play: {
         play_wallet_info: { label: 'Play Button Info', default: '💰 Your Play Wallet: *{play_wallet} ETB*\n\n🎯 Stake: *10 ETB* per cartela (max 2)\n🏆 Derash: *(Cartelas × Stake × 0.75) / Winners*\n\nTap below to open the game:', vars: 'play_wallet' },
         play_need_start: { label: 'Need /start', default: 'Please /start first.', vars: '' },
-        instruction: { label: 'How to Play', default: '📖 *How to Play Yegara Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallets:*\n• Main Wallet — deposit here via TeleBirr\n• Play Wallet — transfer from main to play\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into Play Wallet', vars: '' },
+        instruction: { label: 'How to Play', default: '📖 *How to Play Kelem Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallets:*\n• Main Wallet — deposit here via TeleBirr\n• Play Wallet — transfer from main to play\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into Play Wallet', vars: '' },
     },
     register: {
         register_already: { label: 'Already Registered', default: '✅ You are already registered!\n\nName: {name}\nPhone: {phone}', vars: 'name, phone' },
@@ -96,8 +96,8 @@ var VAR_SAMPLES = {
     deposit_id: 'abc123', withdrawal_id: 'xyz789', timestamp: '20/07/2026 14:30',
     first_name: 'Abebe', username: 'abebe123', min_withdraw: '50', total: '25',
     wins: '8', losses: '17', win_rate: '32%', bonus: '150', stake: '10',
-    players: '12', coins: '500', rate: '10', etb: '50', link: 'https://t.me/YegaraBingoBot?start=ref_123',
-    referral_bonus: '10', support_username: 'yegarasupport', limit: '3',
+    players: '12', coins: '500', rate: '10', etb: '50', link: 'https://t.me/KelemBingoBot?start=ref_123',
+    referral_bonus: '10', support_username: 'kelemsupport', limit: '3',
     minutes: '30', hours: '4', max: '50000'
 };
 

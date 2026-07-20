@@ -40,7 +40,7 @@ if __name__ == "__main__":
     except RuntimeError:
         pass
 
-    logger.info("🚀 Starting Yegara Bingo Platform...")
+    logger.info("🚀 Starting Kelem Bingo Platform...")
 
     game_proc = multiprocessing.Process(target=run_game_bot, name="GameBot")
     admin_proc = multiprocessing.Process(target=run_admin_bot, name="AdminBot")

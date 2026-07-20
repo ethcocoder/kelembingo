@@ -1,7 +1,7 @@
 // ==================== WALLET ====================
 function openDepositBot() {
-    if (tg) { tg.openTelegramLink('https://t.me/yegarabingobot'); }
-    else { window.open('https://t.me/yegarabingobot', '_blank'); }
+    if (tg) { tg.openTelegramLink('https://t.me/kelembingobot'); }
+    else { window.open('https://t.me/kelembingobot', '_blank'); }
 }
 
 function requestWithdrawal() {

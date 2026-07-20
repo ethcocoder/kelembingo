@@ -19,9 +19,9 @@ _cache_ttl = 60  # seconds
 DEFAULTS = {
     # ── Welcome ──
     "welcome_registered": "👋 Welcome back, {name}!\n\n💰 Main Wallet: *{balance} ETB*\n🎮 Play Wallet: *{play_wallet} ETB*\n\nTap Play to start the game!",
-    "welcome_new": "👋 Welcome to Yegara Bingo! Choose an Option below.",
+    "welcome_new": "👋 Welcome to Kelem Bingo! Choose an Option below.",
     "welcome_new_amharic": "🎮 ጨዋታውን ለመጀመር ከታች ያለውን Play የሚለውን ይጫኑ::\n(Click Play below to start the game)",
-    "welcome_banner_caption": "👋 Welcome to Yegara Bingo! Choose an Option below.",
+    "welcome_banner_caption": "👋 Welcome to Kelem Bingo! Choose an Option below.",
 
     # ── Play ──
     "play_wallet_info": "💰 Your Play Wallet: *{play_wallet} ETB*\n\n🎯 Stake: *10 ETB* per cartela (max 2)\n🏆 Derash: *(Cartelas × Stake × 0.75) / Winners*\n\nTap below to open the game:",
@@ -113,7 +113,7 @@ DEFAULTS = {
     "cancel": "Cancelled.",
 
     # ── Instruction ──
-    "instruction": "📖 *How to Play Yegara Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallets:*\n• Main Wallet — deposit here via TeleBirr\n• Play Wallet — transfer from main to play\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into Play Wallet",
+    "instruction": "📖 *How to Play Kelem Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallets:*\n• Main Wallet — deposit here via TeleBirr\n• Play Wallet — transfer from main to play\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into Play Wallet",
 
     # ── Admin Confirmations ──
     "admin_deposit_not_found": "❌ Deposit not found.",

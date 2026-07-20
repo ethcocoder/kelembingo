@@ -1,4 +1,4 @@
-# Bug Fix Report — Yegara Bingo
+# Bug Fix Report — Kelem Bingo
 
 ## Date: 2026-07-18
 ## Scope: Page loading failures, game entry errors, timer logic, history page, admin delete

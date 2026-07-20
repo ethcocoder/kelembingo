@@ -14,7 +14,7 @@ async function initUser() {
         var ug = document.getElementById('user-greeting');
         if (ug) ug.textContent = '';
         var hero = document.querySelector('#screen-home .glass.rounded-2xl.p-5');
-        if (hero) hero.innerHTML = '<div class="text-3xl mb-2">📱</div><h2 class="text-lg font-bold text-white mb-2">Open from Telegram</h2><p class="text-sm text-white/60 mb-4">Please open this game from the Telegram bot.</p><a href="https://t.me/yegarabingobot" target="_blank" class="inline-block gradient-orange text-white px-6 py-3 rounded-xl font-semibold text-sm">Open Bot</a>';
+        if (hero) hero.innerHTML = '<div class="text-3xl mb-2">📱</div><h2 class="text-lg font-bold text-white mb-2">Open from Telegram</h2><p class="text-sm text-white/60 mb-4">Please open this game from the Telegram bot.</p><a href="https://t.me/kelembingobot" target="_blank" class="inline-block gradient-orange text-white px-6 py-3 rounded-xl font-semibold text-sm">Open Bot</a>';
         return;
     }
 

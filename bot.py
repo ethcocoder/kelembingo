@@ -41,7 +41,7 @@ BONUS_CONFIRM = 9
 PLAY_STAKE = 10
 
 MAIN_KEYBOARD = ReplyKeyboardRemove()
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://yegarabingo.onrender.com/game")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://kelembingo.onrender.com/game")
 MAIN_INLINE_KEYBOARD = InlineKeyboardMarkup(
     [
         [InlineKeyboardButton("Play 🎮", callback_data="menu_play"), InlineKeyboardButton("Register 📝", callback_data="menu_register")],
@@ -656,7 +656,7 @@ async def handle_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
     uid = update.effective_user.id
-    link = f"https://t.me/yegarabingobot?start=ref_{uid}"
+    link = f"https://t.me/kelembingobot?start=ref_{uid}"
     await update.effective_message.reply_text(
         get_bot_text('invite_link', db, link=link, referral_bonus=REFERRAL_BONUS),
         reply_markup=MAIN_KEYBOARD, parse_mode='Markdown',
@@ -1144,7 +1144,7 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_approve_withdraw, pattern="^approve_withdraw_"))
     app.add_handler(CallbackQueryHandler(admin_reject_withdraw, pattern="^reject_withdraw_"))
 
-    logger.info("🎯 Yegara Bingo Bot starting...")
+    logger.info("🎯 Kelem Bingo Bot starting...")
 
     async def _handle_error(update, context):
         from telegram.error import Conflict
