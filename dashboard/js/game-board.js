@@ -385,10 +385,9 @@ function handleRoundCompleted(data) {
     var isWinner = (data.winners || []).includes(uidStr);
     var noWinner = !data.winners || data.winners.length === 0;
 
-    if (isWinner) {
-        playWinSound();
-        setTimeout(function() { showWinModal(data); }, 5000);
-    } else if (noWinner) {
+    playWinSound();
+
+    if (noWinner) {
         var winnerName = data.winner_name || '';
         if (winnerName === 'No players') {
             isSpectator = false;
@@ -399,58 +398,65 @@ function handleRoundCompleted(data) {
             showToast('All numbers called! No winner this round.');
         }
         setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 4000);
-    } else if (isSpectator) {
-        var winnerName = data.winner_name || 'Unknown';
-        var prize = Math.round((data.prize_per_winner || 0) * 10) / 10;
-        var winnerCount = (data.winners || []).length;
-        if (winnerCount > 1) {
-            showToast(winnerCount + ' winners split ' + prize + ' ETB each!');
-        } else {
-            showToast(winnerName + ' won ' + prize + ' ETB!');
-        }
-        setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 5000);
     } else {
-        showToast('Game over! Better luck next time.');
-        setTimeout(async function() { await navigateTo('home'); }, 3000);
+        setTimeout(function() { showWinModal(data, isWinner); }, 3000);
     }
 }
 
-function showWinModal(data) {
+function showWinModal(data, isWinner) {
     var wn = document.getElementById('winner-name');
     var wc = document.getElementById('winner-cartela');
     var wp = document.getElementById('winner-prize');
-    if (wn) wn.textContent = (currentUser ? currentUser.first_name : 'Player') || 'Player';
+    var winnerName = data.winner_name || 'Player';
+    if (wn) {
+        if (isWinner) {
+            wn.textContent = 'You Won!';
+            wn.style.color = '#F97316';
+        } else {
+            wn.textContent = winnerName + ' Won!';
+            wn.style.color = '#fff';
+        }
+    }
     var cartelaNum = Array.isArray(data.winning_cartela) ? data.winning_cartela[0] : data.winning_cartela;
     if (wc) wc.textContent = cartelaNum || '?';
     if (wp) wp.textContent = (Math.round((data.prize_per_winner || 0) * 10) / 10) + ' ETB';
 
     var flat = myCartelas[cartelaNum];
     var winGrid = document.getElementById('win-cartela-grid');
-    if (winGrid) {
+    if (winGrid) winGrid.innerHTML = '';
+
+    function renderCartelaGrid(flatData) {
+        if (!winGrid || !flatData) return;
         winGrid.innerHTML = '';
-        if (flat) {
-            var calledArr = data.called_numbers || [];
-            var calledSet = new Set(calledArr);
-            for (var i = 0; i < 25; i++) {
-                var num = flat[i];
-                var cell = document.createElement('div');
-                cell.className = 'rounded text-[9px] font-bold text-center py-1';
-                if (num === 0) {
-                    cell.textContent = '★';
-                    cell.style.background = 'rgba(255,140,0,0.5)';
-                    cell.style.color = '#fff';
-                } else if (calledSet.has(num)) {
-                    cell.textContent = num;
-                    cell.style.background = 'rgba(16,185,129,0.5)';
-                    cell.style.color = '#fff';
-                } else {
-                    cell.textContent = num;
-                    cell.style.background = 'rgba(255,255,255,0.1)';
-                    cell.style.color = 'rgba(255,255,255,0.5)';
-                }
-                winGrid.appendChild(cell);
+        var calledArr = data.called_numbers || [];
+        var calledSet = new Set(calledArr);
+        for (var i = 0; i < 25; i++) {
+            var num = flatData[i];
+            var cell = document.createElement('div');
+            cell.className = 'rounded text-[9px] font-bold text-center py-1';
+            if (num === 0) {
+                cell.textContent = '★';
+                cell.style.background = 'rgba(255,140,0,0.5)';
+                cell.style.color = '#fff';
+            } else if (calledSet.has(num)) {
+                cell.textContent = num;
+                cell.style.background = 'rgba(16,185,129,0.5)';
+                cell.style.color = '#fff';
+            } else {
+                cell.textContent = num;
+                cell.style.background = 'rgba(255,255,255,0.1)';
+                cell.style.color = 'rgba(255,255,255,0.5)';
             }
+            winGrid.appendChild(cell);
         }
+    }
+
+    if (flat) {
+        renderCartelaGrid(flat);
+    } else if (cartelaNum) {
+        db.collection('cartelas_master').doc(String(cartelaNum)).get().then(function(doc) {
+            if (doc.exists) renderCartelaGrid(doc.data().cartela);
+        }).catch(function() {});
     }
 
     var winModal = document.getElementById('win-modal');
