@@ -129,6 +129,11 @@ class JoinRoundRequest(BaseModel):
     user_name: str = "Player"
 
 
+class SelectRequest(BaseModel):
+    user_id: int
+    cartela_number: int
+
+
 class BingoCheckRequest(BaseModel):
     user_id: int
 
@@ -190,6 +195,7 @@ async def _game_loop(round_id: str):
                             'derash': derash,
                             'game_started_at': now,
                             'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
+                            'pending_selections': {},
                         })
                         await broadcast_event('rounds', round_id)
                         break
@@ -215,6 +221,7 @@ async def _game_loop(round_id: str):
                                 'derash': derash,
                                 'game_started_at': now,
                                 'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
+                                'pending_selections': {},
                             })
                             await broadcast_event('rounds', round_id)
                             break
@@ -549,6 +556,64 @@ async def join_round(round_id: str, req: JoinRoundRequest):
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
     # Broadcast real-time cartela pool update
+    await broadcast_cartela_pool(round_id)
+    await broadcast_event('rounds', round_id)
+    return result
+
+
+@app.post("/api/rounds/{round_id}/select")
+async def select_cartela(round_id: str, req: SelectRequest):
+    """Player taps a cartela during selection phase — mark as pending for others to see."""
+    uid_str = str(req.user_id)
+    def _do_select():
+        snap = db.collection('rounds').document(round_id).get()
+        if not snap.exists:
+            return {"error": "Round not found"}
+        rd = snap.to_dict()
+        if rd.get('status') not in ('selecting', None):
+            return {"error": "Round not in selecting phase"}
+        pending = rd.get('pending_selections', {})
+        if not isinstance(pending, dict):
+            pending = {}
+        user_list = pending.get(uid_str, [])
+        if not isinstance(user_list, list):
+            user_list = []
+        if req.cartela_number not in user_list:
+            user_list.append(req.cartela_number)
+        pending[uid_str] = user_list
+        db.collection('rounds').document(round_id).update({'pending_selections': pending})
+        return {"ok": True}
+    result = await asyncio.to_thread(_do_select)
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    await broadcast_cartela_pool(round_id)
+    await broadcast_event('rounds', round_id)
+    return result
+
+
+@app.post("/api/rounds/{round_id}/unselect")
+async def unselect_cartela(round_id: str, req: SelectRequest):
+    """Player deselects a cartela — remove from pending."""
+    uid_str = str(req.user_id)
+    def _do_unselect():
+        snap = db.collection('rounds').document(round_id).get()
+        if not snap.exists:
+            return {"error": "Round not found"}
+        rd = snap.to_dict()
+        pending = rd.get('pending_selections', {})
+        if not isinstance(pending, dict):
+            pending = {}
+        user_list = pending.get(uid_str, [])
+        if not isinstance(user_list, list):
+            user_list = []
+        if req.cartela_number in user_list:
+            user_list.remove(req.cartela_number)
+        pending[uid_str] = user_list
+        db.collection('rounds').document(round_id).update({'pending_selections': pending})
+        return {"ok": True}
+    result = await asyncio.to_thread(_do_unselect)
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
     await broadcast_cartela_pool(round_id)
     await broadcast_event('rounds', round_id)
     return result
@@ -1167,6 +1232,7 @@ async def broadcast_cartela_pool(round_id: str):
             "round_id": round_id,
             "taken_cartelas": rd.get('taken_cartelas', []),
             "player_count": rd.get('player_count', 0),
+            "pending_selections": rd.get('pending_selections', {}),
         }, room=f"rounds:{round_id}")
 
 

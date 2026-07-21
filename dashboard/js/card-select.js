@@ -40,6 +40,7 @@ async function playNow(stake) {
                 players: {},
                 player_count: 0,
                 taken_cartelas: [],
+                pending_selections: {},
                 called_numbers: [],
                 winners: [],
                 prize_per_winner: 0,
@@ -212,6 +213,16 @@ async function showCardSelection(roundId, roundData) {
         }
 
         var takenSet = new Set((roundData.taken_cartelas || []).map(function(v) { return parseInt(v) || v; }));
+        // Also include other users' pending selections
+        var pending0 = roundData.pending_selections || {};
+        var myUid0 = String(currentUser.id);
+        Object.keys(pending0).forEach(function(uid) {
+            if (uid === myUid0) return;
+            var nums = pending0[uid];
+            if (Array.isArray(nums)) {
+                nums.forEach(function(n) { takenSet.add(parseInt(n) || n); });
+            }
+        });
 
         if (grid) grid.innerHTML = '';
         masterSnap.forEach(function(doc) {
@@ -235,14 +246,24 @@ async function showCardSelection(roundId, roundData) {
         roundUnsubscribe = db.collection('rounds').doc(roundId).onSnapshot(function(snap) {
             if (!snap.exists) return;
             var rd = snap.data();
+            // Build taken set: confirmed taken_cartelas + other users' pending_selections
             var rawTaken = rd.taken_cartelas || [];
             var nowTaken = new Set(rawTaken.map(function(v) { return parseInt(v) || v; }));
+            var pending = rd.pending_selections || {};
+            var myUid = String(currentUser.id);
+            Object.keys(pending).forEach(function(uid) {
+                if (uid === myUid) return; // skip own selections
+                var nums = pending[uid];
+                if (Array.isArray(nums)) {
+                    nums.forEach(function(n) { nowTaken.add(parseInt(n) || n); });
+                }
+            });
             if (grid) {
                 var changed = false;
                 grid.querySelectorAll('.card-tile').forEach(function(cell) {
                     var n = parseInt(cell.dataset.num);
                     if (nowTaken.has(n) || nowTaken.has(String(n))) {
-                        if (!cell.classList.contains('taken')) {
+                        if (!cell.classList.contains('taken') && !cell.classList.contains('selected')) {
                             cell.className = 'card-tile taken taken-flash';
                             cell.onclick = (function(num) { return function() { showToast('Card #' + num + ' is already taken by another player'); }; })(n);
                             var selIdx = selectedCartelas.indexOf(n);
@@ -251,6 +272,12 @@ async function showCardSelection(roundId, roundData) {
                                 changed = true;
                                 showToast('Card #' + n + ' was taken by another player!');
                             }
+                        }
+                    } else {
+                        // Not taken — restore click handler if needed
+                        if (cell.classList.contains('taken') && !cell.classList.contains('selected')) {
+                            cell.className = 'card-tile';
+                            cell.onclick = (function(num, c) { return function() { toggleCardSelection(num, c); }; })(n, cell);
                         }
                     }
                 });
@@ -337,10 +364,17 @@ async function showCardSelection(roundId, roundData) {
 
 function toggleCardSelection(num, cell) {
     var idx = selectedCartelas.indexOf(num);
+    var apiBase = window.API_BASE || window.location.origin;
     if (idx > -1) {
         selectedCartelas.splice(idx, 1);
         cell.className = 'card-tile';
         cell.style.boxShadow = '';
+        // Tell server to unmark as pending
+        fetch(apiBase + '/api/rounds/' + currentRoundId + '/unselect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: currentUser.id, cartela_number: num })
+        }).catch(function() {});
     } else {
         if (selectedCartelas.length >= MAX_CARTELAS) {
             showToast('Maximum ' + MAX_CARTELAS + ' cartelas!');
@@ -353,6 +387,12 @@ function toggleCardSelection(num, cell) {
         }
         selectedCartelas.push(num);
         cell.className = 'card-tile selected';
+        // Tell server to mark as pending (so other devices see TAKEN)
+        fetch(apiBase + '/api/rounds/' + currentRoundId + '/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: currentUser.id, cartela_number: num })
+        }).catch(function() {});
     }
     updateSelectedInfo();
     schedulePreviewRender();

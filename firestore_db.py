@@ -62,6 +62,10 @@ class ArrayUnion:
     def __init__(self, values):
         self.values = values if isinstance(values, list) else [values]
 
+class ArrayRemove:
+    def __init__(self, values):
+        self.values = values if isinstance(values, list) else [values]
+
 class FieldFilter:
     def __init__(self, field, op, value):
         self.field = field
@@ -409,6 +413,11 @@ class DocumentRef:
                         if item not in lst:
                             lst.append(item)
                     target[last_part] = lst
+                elif isinstance(v, ArrayRemove):
+                    lst = target.get(last_part, [])
+                    if not isinstance(lst, list):
+                        lst = []
+                    target[last_part] = [x for x in lst if x not in v.values]
                 else:
                     target[last_part] = self._serialize_val(v)
             
