@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_ORIGINS = [
     "https://kelembingo.onrender.com",
-    "https://kelem-bingo-api.onrender.com",
-]
+    "https://kelem-bingo-api.onrender.com",  # Keep for legacy redirects
+]  # Clients now connect from window.location.origin (same service)
 
 
 # ─── Socket.IO Server ───
