@@ -393,7 +393,14 @@ def _start_game_loop(round_id: str):
 
 @app.on_event("startup")
 async def start_background_monitor():
-    """Startup: monitors rounds AND broadcasts WS events."""
+    """Startup: ensures system docs exist, monitors rounds, broadcasts WS events."""
+    # Ensure admin_status document exists (prevents 404 on onSnapshot)
+    try:
+        if not db.collection('system').document('admin_status').get().exists:
+            db.collection('system').document('admin_status').set({'online': False})
+    except Exception:
+        pass
+
     async def _monitor():
         while True:
             try:
