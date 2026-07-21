@@ -2,6 +2,7 @@
 var _lastNumberAudio = null;
 function getAudioCtx() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     return audioCtx;
 }
 
@@ -12,7 +13,7 @@ function playNumberSound(num) {
         var letter = getNumberLetter(num);
         if (!letter) return;
         if (_lastNumberAudio) { try { _lastNumberAudio.pause(); _lastNumberAudio.src = ''; } catch(e) {} }
-        var src = 'public/audio/' + letter + num + '.mp3';
+        var src = '/audio/' + letter + num + '.mp3';
         var audio = new Audio(src);
         _lastNumberAudio = audio;
         audio.volume = masterVolume;
@@ -44,7 +45,7 @@ function playWinSound() {
             osc.connect(gain); gain.connect(ctx.destination);
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
-            gain.gain.setValueAtTime(masterVolume * 0.3, ctx.currentTime + i * 0.15);
+            gain.gain.setValueAtTime(masterVolume, ctx.currentTime + i * 0.15);
             gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.15 + 0.3);
             osc.start(ctx.currentTime + i * 0.15);
             osc.stop(ctx.currentTime + i * 0.15 + 0.3);
@@ -58,7 +59,7 @@ function playBingoAnnouncement(cartelaNum) {
     try {
         var num = parseInt(cartelaNum);
         if (num >= 1 && num <= 500) {
-            var audio = new Audio('public/audio/cartela_bingo/cartela_' + num + '.mp3');
+            var audio = new Audio('/audio/cartela_bingo/cartela_' + num + '.mp3');
             audio.volume = masterVolume;
             audio.play().catch(function() {
                 playBingoAnnouncementFallback(cartelaNum);
@@ -128,7 +129,7 @@ function setVolume(val) {
 function startBgMusic() {
     if (bgMusicAudio) return;
     try {
-        bgMusicAudio = new Audio('public/audio/bg_music.wav');
+        bgMusicAudio = new Audio('/audio/bg_music.wav');
         bgMusicAudio.loop = true;
         bgMusicAudio.volume = masterVolume * 0.3;
         bgMusicAudio.play().catch(function() { bgMusicAudio = null; musicEnabled = false; });
@@ -163,4 +164,11 @@ function restoreAudioSettings() {
     }
     var vol = localStorage.getItem('kelem_volume');
     if (vol) { masterVolume = parseInt(vol) / 100; var s = document.getElementById('volume-slider'); if (s) { s.value = vol; s.style.setProperty('--vol-pct', vol + '%'); } }
+}
+
+function stopAllAudio() {
+    if (_lastNumberAudio) { try { _lastNumberAudio.pause(); _lastNumberAudio.src = ''; _lastNumberAudio = null; } catch(e) {} }
+    stopBgMusic();
+    try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch(e) {}
+    try { if (audioCtx && audioCtx.state !== 'closed') audioCtx.close(); audioCtx = null; } catch(e) {}
 }

@@ -348,6 +348,7 @@ async def _game_loop(round_id: str):
                     if engine.check_bingo_for_cartela(flat, called_now):
                         bingo_winners.append(uid_str)
                         bingo_cartelas.append(cnum)
+                        break  # Count each player only once — one player with 2 cartelas = 1 winner
 
             if bingo_winners:
                 now = datetime.now(tz=timezone.utc)
@@ -582,12 +583,18 @@ async def select_cartela(round_id: str, req: SelectRequest):
             user_list.append(req.cartela_number)
         pending[uid_str] = user_list
         db.collection('rounds').document(round_id).update({'pending_selections': pending})
-        return {"ok": True}
+        return {"ok": True, "_pending": pending, "_taken": rd.get('taken_cartelas', []), "_pc": rd.get('player_count', 0)}
     result = await asyncio.to_thread(_do_select)
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
-    await broadcast_cartela_pool(round_id)
-    await broadcast_event('rounds', round_id)
+    # Broadcast directly with data we already have — no extra DB read
+    await sio.emit('cartela_pool', {
+        "type": "cartela_pool",
+        "round_id": round_id,
+        "taken_cartelas": result.pop('_taken', []),
+        "player_count": result.pop('_pc', 0),
+        "pending_selections": result.pop('_pending', {}),
+    }, room=f"rounds:{round_id}")
     return result
 
 
@@ -610,12 +617,17 @@ async def unselect_cartela(round_id: str, req: SelectRequest):
             user_list.remove(req.cartela_number)
         pending[uid_str] = user_list
         db.collection('rounds').document(round_id).update({'pending_selections': pending})
-        return {"ok": True}
+        return {"ok": True, "_pending": pending, "_taken": rd.get('taken_cartelas', []), "_pc": rd.get('player_count', 0)}
     result = await asyncio.to_thread(_do_unselect)
     if 'error' in result:
         raise HTTPException(status_code=400, detail=result['error'])
-    await broadcast_cartela_pool(round_id)
-    await broadcast_event('rounds', round_id)
+    await sio.emit('cartela_pool', {
+        "type": "cartela_pool",
+        "round_id": round_id,
+        "taken_cartelas": result.pop('_taken', []),
+        "player_count": result.pop('_pc', 0),
+        "pending_selections": result.pop('_pending', {}),
+    }, room=f"rounds:{round_id}")
     return result
 
 

@@ -386,6 +386,7 @@ function handleRoundCompleted(data) {
     var noWinner = !data.winners || data.winners.length === 0;
 
     if (isWinner) {
+        playWinSound();
         setTimeout(function() { showWinModal(data); }, 5000);
     } else if (noWinner) {
         var winnerName = data.winner_name || '';
@@ -523,5 +524,5 @@ function leaveGame() {
     calledNumbers = new Set();
     selectedCartelas = [];
     autoMarkEnabled = false;
-    stopBgMusic();
+    stopAllAudio();
 }

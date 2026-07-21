@@ -1,10 +1,21 @@
 // ==================== HELPERS ====================
 var _originalPlayWallet = 0;
+var _lastPendingSelections = {};
 
 function calcDerash(existingCartelas, mySelections, stake) {
     var totalCartelas = (existingCartelas || 0) + (mySelections || 0);
     if (totalCartelas < 1) return 0;
     return Math.round(totalCartelas * (stake || 10) * 0.75 * 10) / 10;
+}
+
+function countTotalPendingSelections(pendingSelections) {
+    var total = 0;
+    var pending = pendingSelections || {};
+    Object.keys(pending).forEach(function(uid) {
+        var nums = pending[uid];
+        if (Array.isArray(nums)) total += nums.length;
+    });
+    return total;
 }
 
 // ==================== PLAY NOW ====================
@@ -173,7 +184,9 @@ async function showCardSelection(roundId, roundData) {
 
     var playerCount = roundData.player_count || 0;
     _lastKnownPlayerCount = playerCount;
-    var estimatedETB = calcDerash(playerCount, selectedCartelas.length, currentStake);
+    _lastPendingSelections = roundData.pending_selections || {};
+    var totalPending = countTotalPendingSelections(_lastPendingSelections);
+    var estimatedETB = calcDerash(playerCount, totalPending, currentStake);
     var el;
     if (el = document.getElementById('cs-stake')) el.textContent = currentStake + ' ETB';
     if (el = document.getElementById('cs-derash')) el.textContent = estimatedETB + ' ETB';
@@ -293,7 +306,9 @@ async function showCardSelection(roundId, roundData) {
 
             var livePlayerCount = rd.player_count || 0;
             _lastKnownPlayerCount = livePlayerCount;
-            var liveETB = calcDerash(livePlayerCount, selectedCartelas.length, currentStake);
+            _lastPendingSelections = rd.pending_selections || {};
+            var liveTotalPending = countTotalPendingSelections(_lastPendingSelections);
+            var liveETB = calcDerash(livePlayerCount, liveTotalPending, currentStake);
     var derashEl;
     if (derashEl = document.getElementById('cs-derash')) derashEl.textContent = liveETB + ' ETB';
 
@@ -356,6 +371,21 @@ async function showCardSelection(roundId, roundData) {
                 }
             }
         });
+        // Fast path: listen to cartela_pool Socket.IO event for instant TAKEN updates
+        if (window._bingoSocket) {
+            _cartelaPoolHandler = function(msg) {
+                if (msg.round_id !== roundId) return;
+                _updateCartelaGrid(msg.taken_cartelas, msg.pending_selections, grid);
+                var livePC = msg.player_count || 0;
+                _lastKnownPlayerCount = livePC;
+                _lastPendingSelections = msg.pending_selections || {};
+                var livePoolPending = countTotalPendingSelections(_lastPendingSelections);
+                var liveETB = calcDerash(livePC, livePoolPending, currentStake);
+                var derashEl;
+                if (derashEl = document.getElementById('cs-derash')) derashEl.textContent = liveETB + ' ETB';
+            };
+            window._bingoSocket.on('cartela_pool', _cartelaPoolHandler);
+        }
     } catch (err) {
         console.error('Error loading cartelas:', err);
         if (grid) grid.innerHTML = '<div class="col-span-8 text-center py-8"><p class="text-red-400 text-sm">Error: ' + err.message + '</p></div>';
@@ -396,6 +426,53 @@ function toggleCardSelection(num, cell) {
     }
     updateSelectedInfo();
     schedulePreviewRender();
+}
+
+function _updateCartelaGrid(takenCartelas, pendingSelections, grid) {
+    if (!grid) return;
+    var nowTaken = new Set((takenCartelas || []).map(function(v) { return parseInt(v) || v; }));
+    var pending = pendingSelections || {};
+    var myUid = String(currentUser ? currentUser.id : '');
+    Object.keys(pending).forEach(function(uid) {
+        if (uid === myUid) return;
+        var nums = pending[uid];
+        if (Array.isArray(nums)) {
+            nums.forEach(function(n) { nowTaken.add(parseInt(n) || n); });
+        }
+    });
+    var changed = false;
+    grid.querySelectorAll('.card-tile').forEach(function(cell) {
+        var n = parseInt(cell.dataset.num);
+        if (nowTaken.has(n) || nowTaken.has(String(n))) {
+            if (!cell.classList.contains('taken') && !cell.classList.contains('selected')) {
+                cell.className = 'card-tile taken taken-flash';
+                cell.onclick = (function(num) { return function() { showToast('Card #' + num + ' is already taken by another player'); }; })(n);
+                var selIdx = selectedCartelas.indexOf(n);
+                if (selIdx > -1) {
+                    selectedCartelas.splice(selIdx, 1);
+                    changed = true;
+                    showToast('Card #' + n + ' was taken by another player!');
+                }
+            }
+        } else {
+            if (cell.classList.contains('taken') && !cell.classList.contains('selected')) {
+                cell.className = 'card-tile';
+                cell.onclick = (function(num) { return function() { toggleCardSelection(num, cell); }; })(n);
+            }
+        }
+    });
+    if (changed) {
+        updateSelectedInfo();
+        renderAllPreviews();
+    }
+}
+
+var _cartelaPoolHandler = null;
+function _cleanupCartelaPoolListener() {
+    if (window._bingoSocket && _cartelaPoolHandler) {
+        window._bingoSocket.off('cartela_pool', _cartelaPoolHandler);
+        _cartelaPoolHandler = null;
+    }
 }
 
 var _previewDebounce = null;
@@ -514,7 +591,7 @@ function updateSelectedInfo() {
     var liveDerashEl = document.getElementById('cs-derash');
     if (liveDerashEl) {
         var baseCount = _lastKnownPlayerCount || 0;
-        liveDerashEl.textContent = calcDerash(baseCount, count, currentStake) + ' ETB';
+        liveDerashEl.textContent = calcDerash(baseCount, countTotalPendingSelections(_lastPendingSelections || {}), currentStake) + ' ETB';
     }
 }
 
@@ -528,6 +605,7 @@ function cancelCardSelect() {
     var pwEl = document.getElementById('cs-play-wallet');
     if (pwEl) pwEl.style.color = '';
     if (roundUnsubscribe) { roundUnsubscribe(); roundUnsubscribe = null; }
+    _cleanupCartelaPoolListener();
     // Unsubscribe from Socket.IO rooms
     if (window._bingoSocket && currentRoundId) {
         window._bingoSocket.emit('unsubscribe', { collection: 'rounds', doc_id: currentRoundId });
