@@ -31,7 +31,7 @@ function switchSection(name) {
     document.getElementById('userDropdown').classList.add('hidden');
     if (name === 'cartelas') loadCartelaPool();
     if (name === 'payments') loadPayments();
-    if (name === 'botcontent') loadBotCategory('welcome');
+    if (name === 'botcontent') loadBotCategory('config');
 }
 
 // Restore section from URL hash on page load

@@ -720,7 +720,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-2xl font-bold">Bot Content</h3>
-                    <p class="text-gray-500 text-sm mt-1">Edit all Telegram bot messages. Changes take effect within 60 seconds.</p>
+                    <p class="text-gray-500 text-sm mt-1">Edit bot messages and amounts (minimum withdrawal, deposit, referral bonus…). Changes apply instantly.</p>
                 </div>
                 <button onclick="seedBotContent()" class="px-4 py-2 rounded-xl bg-[#FF8C00]/20 text-[#FF8C00] text-sm font-semibold hover:bg-[#FF8C00]/30 transition-all">Seed Defaults</button>
             </div>
@@ -728,7 +728,8 @@
 
         <!-- Category Tabs -->
         <div class="flex gap-2 mb-6 overflow-x-auto pb-2" id="botContentTabs">
-            <button onclick="loadBotCategory('welcome')" class="botcat-tab active px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all" data-cat="welcome">Welcome</button>
+            <button onclick="loadBotCategory('config')" class="botcat-tab active px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all" data-cat="config">💰 Amounts &amp; Limits</button>
+            <button onclick="loadBotCategory('welcome')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="welcome">Welcome</button>
             <button onclick="loadBotCategory('deposit')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="deposit">Deposit</button>
             <button onclick="loadBotCategory('withdraw')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="withdraw">Withdraw</button>
             <button onclick="loadBotCategory('transfer')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="transfer">Transfer</button>
@@ -739,7 +740,6 @@
             <button onclick="loadBotCategory('play')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="play">Play</button>
             <button onclick="loadBotCategory('register')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="register">Register</button>
             <button onclick="loadBotCategory('stats')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="stats">Stats</button>
-            <button onclick="loadBotCategory('config')" class="botcat-tab px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all text-gray-400" data-cat="config">⚙️ Config</button>
         </div>
 
         <!-- Messages Editor -->
