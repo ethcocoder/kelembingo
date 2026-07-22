@@ -1,6 +1,9 @@
+import logging
 import random
 from datetime import datetime, timezone
 from firestore_db import FieldFilter, transactional as firestore_transactional
+
+logger = logging.getLogger(__name__)
 
 TOTAL_CARTELAS = 500
 
@@ -72,6 +75,7 @@ class GameEngine:
                 'winners_today': winners_today
             }
         except Exception as e:
+            logger.error(f"Failed to compute game stats: {e}", exc_info=True)
             return {'active_players': 0, 'games_played': 0, 'winners_today': 0}
 
     async def create_game(self, user_id, stake):

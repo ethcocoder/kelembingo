@@ -190,7 +190,7 @@ async def _game_loop(round_id: str):
                 elif isinstance(deadline, str):
                     try:
                         dl_dt = datetime.fromisoformat(deadline)
-                    except:
+                    except (ValueError, TypeError):
                         dl_dt = datetime.now(tz=timezone.utc)
                 else:
                     dl_dt = datetime.now(tz=timezone.utc)
@@ -276,8 +276,10 @@ async def _game_loop(round_id: str):
                         logger.error(f"[GameLoop] Error distributing prizes for {round_id}: {e}")
                         return  # Don't mark as processed if payout failed
                     for uid in winners:
-                        try: await broadcast_event('users', str(uid))
-                        except: pass
+                        try:
+                            await broadcast_event('users', str(uid))
+                        except Exception as e:
+                            logger.warning(f"[GameLoop] Failed to broadcast user {uid}: {e}")
                     db.collection('rounds').document(round_id).update({'payout_processed': True})
                     await broadcast_event('rounds', round_id)
                 return
@@ -347,7 +349,8 @@ async def _game_loop(round_id: str):
                     try:
                         await engine.end_round(round_id, [int(w) for w in winners])
                     except Exception as e:
-                        logger.error(f"[GameLoop] Error distributing prizes: {e}")
+                        logger.error(f"[GameLoop] Error distributing prizes for {round_id}: {e}", exc_info=True)
+                        return  # Don't mark as processed if payout failed
                     db.collection('rounds').document(round_id).update({'payout_processed': True})
                 return
 
@@ -388,11 +391,14 @@ async def _game_loop(round_id: str):
                 try:
                     await engine.end_round(round_id, [int(winner_id)])
                 except Exception as e:
-                    logger.error(f"[GameLoop] Error distributing prizes: {e}")
+                    logger.error(f"[GameLoop] Error distributing prizes for {round_id}: {e}", exc_info=True)
+                    return  # Don't mark as processed if payout failed
                 # Broadcast user updates so frontend sees balance/wins change
                 for uid in set(list(players.keys()) + [winner_id]):
-                    try: await broadcast_event('users', str(uid))
-                    except: pass
+                    try:
+                        await broadcast_event('users', str(uid))
+                    except Exception as e:
+                        logger.warning(f"[GameLoop] Failed to broadcast user {uid}: {e}")
                 db.collection('rounds').document(round_id).update({'payout_processed': True})
                 await broadcast_event('rounds', round_id)
                 logger.info(
@@ -859,7 +865,9 @@ async def validate_withdrawal(user_id: str, amount: float):
         result = await um.validate_withdrawal(int(user_id), amount)
         return result
     except Exception as e:
-        return {"ok": True}
+        logger.error(f"[validate_withdrawal] Failed for user {user_id}: {e}", exc_info=True)
+        # Fail closed: never approve a withdrawal we could not validate.
+        return {"ok": False, "error": "system_error"}
 
 
 @app.get("/api/deposits/config/{user_id}", response_model=DepositConfigResponse)
@@ -1011,8 +1019,8 @@ async def admin_approve_deposit(deposit_id: str, req: DepositActionRequest):
             chat_id=int(user_id),
             text=f"✅ Deposit approved!\n💰 {amount} ETB has been added to your wallet."
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[approve_deposit] Failed to notify user {user_id}: {e}")
 
     return {"ok": True, "amount": amount, "user_id": user_id}
 
@@ -1039,8 +1047,8 @@ async def admin_reject_deposit(deposit_id: str, req: DepositActionRequest):
             chat_id=int(user_id),
             text=f"❌ Deposit rejected.\nReason: {note}\nPlease contact support if you need help."
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[reject_deposit] Failed to notify user {user_id}: {e}")
     return {"ok": True}
 
 
@@ -1128,8 +1136,8 @@ async def admin_approve_withdrawal(withdrawal_id: str, req: DepositActionRequest
             chat_id=int(user_id),
             text=get_bot_text('withdraw_approved', db, amount=amount)
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[approve_withdrawal] Failed to notify user {user_id}: {e}")
     return {"ok": True, "amount": amount, "user_id": user_id}
 
 
@@ -1165,8 +1173,8 @@ async def admin_reject_withdrawal(withdrawal_id: str, req: DepositActionRequest)
             chat_id=int(user_id),
             text=get_bot_text('withdraw_rejected', db, amount=amount)
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[reject_withdrawal] Failed to notify user {user_id}: {e}")
     return {"ok": True}
 
 
@@ -1320,8 +1328,8 @@ async def db_query_collection(
         try:
             for f in json.loads(filters):
                 ref = ref.where(f[0], f[1], f[2])
-        except Exception:
-            pass
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid filters: {e}")
     if order_by:
         ref = ref.order_by(order_by, order_dir)
     if limit_n:

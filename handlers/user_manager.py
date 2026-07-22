@@ -1,7 +1,10 @@
+import logging
 from firestore_db import FieldFilter, transactional as firestore_transactional
 from firestore_db import MockFirestoreClient
 from datetime import datetime, timezone
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class UserManager:
@@ -155,14 +158,17 @@ class UserManager:
                 if total_deposited < min_initial_deposit:
                     return {'ok': False, 'error': 'deposit_required', 'min_deposit': min_initial_deposit, 'current_deposit': total_deposited}
             except Exception as e:
-                import logging; logging.getLogger(__name__).error(f"Error checking deposits: {e}")
+                logger.error(f"Error checking deposits for user {user_id}: {e}", exc_info=True)
+                # Fail closed: don't allow a withdrawal we couldn't fully validate.
+                return {'ok': False, 'error': 'system_error'}
 
             try:
                 pending = list(self.db.collection('withdrawals').where('userId', '==', str(user_id)).where('status', '==', 'pending').limit(1).get())
                 if pending:
                     return {'ok': False, 'error': 'pending_exists'}
             except Exception as e:
-                import logging; logging.getLogger(__name__).error(f"Error checking pending withdrawals: {e}")
+                logger.error(f"Error checking pending withdrawals for user {user_id}: {e}", exc_info=True)
+                return {'ok': False, 'error': 'system_error'}
 
             try:
                 today_start = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -185,7 +191,8 @@ class UserManager:
                 if today_count >= max_per_day:
                     return {'ok': False, 'error': 'daily_limit', 'limit': max_per_day}
             except Exception as e:
-                import logging; logging.getLogger(__name__).error(f"Error checking daily limit: {e}")
+                logger.error(f"Error checking daily limit for user {user_id}: {e}", exc_info=True)
+                return {'ok': False, 'error': 'system_error'}
 
             try:
                 recent_docs = list(self.db.collection('withdrawals').where('userId', '==', str(user_id)).get())
@@ -213,11 +220,12 @@ class UserManager:
                                 remaining = (cooldown_end - datetime.now(tz=timezone.utc)).total_seconds() / 60
                                 return {'ok': False, 'error': 'cooldown', 'minutes': int(remaining), 'hours': cooldown_hours}
             except Exception as e:
-                import logging; logging.getLogger(__name__).error(f"Error checking cooldown: {e}")
+                logger.error(f"Error checking cooldown for user {user_id}: {e}", exc_info=True)
+                return {'ok': False, 'error': 'system_error'}
 
             return {'ok': True}
         except Exception as e:
-            import logging; logging.getLogger(__name__).error(f"CRITICAL ERROR in validate_withdrawal: {e}\n{traceback.format_exc()}")
+            logger.error(f"CRITICAL ERROR in validate_withdrawal: {e}\n{traceback.format_exc()}")
             return {'ok': False, 'error': 'system_error'}
 
     async def get_user_history(self, user_id: int, limit: int = 10) -> list:
