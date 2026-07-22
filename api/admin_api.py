@@ -14,7 +14,7 @@ import datetime
 from config import db, BOT_TOKEN
 from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFilter, Increment, ArrayUnion
 
-from game.round_engine import RoundEngine, DEFAULT_STAKE, VALID_STAKES, SELECTION_DURATION
+from game.round_engine import RoundEngine, DEFAULT_STAKE, VALID_STAKES, SELECTION_DURATION, GAME_LENGTH_RANGE
 from handlers.user_manager import UserManager
 from datetime import datetime, timedelta, timezone
 from telegram import Bot
@@ -106,6 +106,7 @@ socket_app = CORSASGIMiddleware(_raw_socket_app, ALLOWED_ORIGINS)
 
 engine = RoundEngine(db)
 user_manager = UserManager(db)
+MAX_SMART_CALLS = GAME_LENGTH_RANGE[1]
 
 @app.get("/api/time")
 def get_server_time():
@@ -293,7 +294,7 @@ async def _game_loop(round_id: str):
                 })
                 await broadcast_event('rounds', round_id)
                 return
-            # Always use smart predictor to avoid multiple winners
+            # Always use the smart predictor so the round resolves inside the 15-30 call window
             try:
                 number = await engine.call_number(round_id)
                 await broadcast_event('rounds', round_id)
@@ -317,7 +318,7 @@ async def _game_loop(round_id: str):
                 await asyncio.sleep(NUMBER_CALL_INTERVAL)
                 continue
 
-            # ── SERVER-SIDE BINGO CHECK (authoritative) ──
+            # ── SERVER-SIDE WINNER CHECK (authoritative) ──
             round_doc = db.collection('rounds').document(round_id).get()
             if not round_doc.exists:
                 return
@@ -335,49 +336,53 @@ async def _game_loop(round_id: str):
 
             called_now = rd_after.get('called_numbers', [])
             players = rd_after.get('players', {})
-            bingo_winners = []       # list of uid_str
-            bingo_cartelas = []      # parallel list of cartela numbers
+            player_cartelas = engine.build_player_cartelas(players)
+            winner_entries = engine.evaluate_winners(player_cartelas, called_now)
+            chosen_winner = None
+            completion_reason = None
 
-            for uid_str, p_info in players.items():
-                for cnum in p_info.get('cartelas', []):
-                    cartela_doc = db.collection('cartelas_master').document(str(cnum)).get()
-                    if not cartela_doc.exists:
-                        continue
-                    flat = cartela_doc.to_dict().get('cartela', [])
-                    if engine.check_bingo_for_cartela(flat, called_now):
-                        bingo_winners.append(uid_str)
-                        bingo_cartelas.append(cnum)
-                        break  # Count each player only once — one player with 2 cartelas = 1 winner
+            if winner_entries:
+                chosen_winner = engine.choose_single_winner(winner_entries, players)
+                completion_reason = 'smart_single_winner' if len(winner_entries) == 1 else 'smart_tie_break_single_winner'
+            elif len(called_now) >= MAX_SMART_CALLS:
+                chosen_winner = engine.get_closest_contender(player_cartelas, called_now, players)
+                completion_reason = 'forced_single_winner_max_30'
 
-            if bingo_winners:
+            if chosen_winner:
                 now = datetime.now(tz=timezone.utc)
                 player_count = rd_after.get('player_count', 1)
                 round_stake = rd_after.get('stake', DEFAULT_STAKE)
                 total_prize = player_count * round_stake * 0.75
-                num_winners = len(bingo_winners)
-                prize_per_winner = total_prize / num_winners if num_winners > 0 else 0
-                winner_names = [players.get(w, {}).get('name', 'Player') for w in bingo_winners]
+                winner_id = str(chosen_winner.get('user_id'))
+                winning_cartela = int(chosen_winner.get('cartela_number', 0))
+                prize_per_winner = total_prize
+                winner_name = players.get(winner_id, {}).get('name', 'Player')
                 db.collection('rounds').document(round_id).update({
                     'status': 'completed',
-                    'winners': bingo_winners,
-                    'winner_name': winner_names[0] if len(winner_names) == 1 else ', '.join(winner_names),
-                    'winning_cartela': int(bingo_cartelas[0]) if len(bingo_cartelas) == 1 else [int(c) for c in bingo_cartelas],
+                    'winners': [winner_id],
+                    'winner_name': winner_name,
+                    'winning_cartela': winning_cartela,
                     'prize_per_winner': prize_per_winner,
+                    'completion_reason': completion_reason,
                     'completed_at': now,
                 })
                 await broadcast_event('rounds', round_id)
-                # Process payout (handles wallet credit, wins/losses tracking)
+                # Process payout with exactly one winner, even if multiple players completed on the same call.
                 try:
-                    await engine.end_round(round_id, [int(w) for w in bingo_winners])
+                    await engine.end_round(round_id, [int(winner_id)])
                 except Exception as e:
                     logger.error(f"[GameLoop] Error distributing prizes: {e}")
                 # Broadcast user updates so frontend sees balance/wins change
-                for uid in list(players.keys()) + bingo_winners:
+                for uid in set(list(players.keys()) + [winner_id]):
                     try: await broadcast_event('users', str(uid))
                     except: pass
                 db.collection('rounds').document(round_id).update({'payout_processed': True})
                 await broadcast_event('rounds', round_id)
-                logger.info(f"[GameLoop] BINGO! {num_winners} winner(s) for round {round_id}: {bingo_winners} with cartelas {bingo_cartelas}")
+                logger.info(
+                    f"[GameLoop] ROUND COMPLETE {round_id}: winner={winner_id} "
+                    f"cartela={winning_cartela} calls={len(called_now)} reason={completion_reason} "
+                    f"natural_winners={len(winner_entries)}"
+                )
                 return
 
             await asyncio.sleep(NUMBER_CALL_INTERVAL)

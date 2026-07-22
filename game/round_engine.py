@@ -139,6 +139,7 @@ class RoundEngine:
             return active
 
         now = datetime.now(tz=timezone.utc)
+        game_target = self.normalize_game_target()
         round_data = {
             'status': 'selecting',
             'stake': stake,
@@ -149,6 +150,7 @@ class RoundEngine:
             'winners': [],
             'prize_per_winner': 0,
             'admin_profit': 0,
+            'game_target': game_target,
             'selection_deadline': now + timedelta(seconds=SELECTION_DURATION),
             'created_at': now,
             'completed_at': None,
@@ -261,14 +263,110 @@ class RoundEngine:
         derash = total_pool * 0.75
 
         now = datetime.now(tz=timezone.utc)
+        game_target = self.normalize_game_target(data.get('game_target'))
         self.rounds_ref.document(round_id).update({
             'status': 'playing',
+            'game_target': game_target,
             'game_started_at': now,
             'derash': derash,
             'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
         })
 
-        return {'status': 'playing', 'player_count': player_count, 'derash': derash}
+        return {'status': 'playing', 'player_count': player_count, 'derash': derash, 'game_target': game_target}
+
+    def normalize_game_target(self, game_target: Optional[int] = None) -> int:
+        """Clamp the round finish target to the supported smart-predictor window."""
+        min_calls, max_calls = GAME_LENGTH_RANGE
+        if game_target is None:
+            return random.randint(min_calls, max_calls)
+        try:
+            target = int(game_target)
+        except (TypeError, ValueError):
+            return random.randint(min_calls, max_calls)
+        return max(min_calls, min(max_calls, target))
+
+    def build_player_cartelas(self, players: Dict[str, dict]) -> Dict[str, List[dict]]:
+        """Load all cartelas for active players once so predictor and resolver share the same state."""
+        if not _CARTELA_CACHE:
+            try:
+                docs = self.master_ref.get()
+                for doc in docs:
+                    _CARTELA_CACHE[doc.id] = doc.to_dict().get('cartela', [])
+            except Exception:
+                pass
+
+        player_cartelas = {}
+        for uid_str, p_info in (players or {}).items():
+            player_cartelas[uid_str] = []
+            for cnum in p_info.get('cartelas', []):
+                ctype = str(cnum)
+                flat = _CARTELA_CACHE.get(ctype)
+                if flat is None:
+                    cdoc = self.master_ref.document(ctype).get()
+                    if not cdoc.exists:
+                        continue
+                    flat = cdoc.to_dict().get('cartela', [])
+                    _CARTELA_CACHE[ctype] = flat
+                player_cartelas[uid_str].append({
+                    'cartela_number': int(cnum),
+                    'flat': flat,
+                })
+        return player_cartelas
+
+    def evaluate_winners(self, player_cartelas: Dict[str, List[dict]], called_numbers: List[int]) -> List[dict]:
+        """Return unique player winners and the first winning cartela for each player."""
+        winners = []
+        for uid_str, cartelas in player_cartelas.items():
+            for entry in cartelas:
+                if self.check_bingo_for_cartela(entry.get('flat', []), called_numbers):
+                    winners.append({
+                        'user_id': uid_str,
+                        'cartela_number': int(entry.get('cartela_number', 0)),
+                    })
+                    break
+        return winners
+
+    def _winner_sort_key(self, user_id: str, cartela_number: int, players: Dict[str, dict]) -> Tuple[str, int, str]:
+        joined_at = (players or {}).get(user_id, {}).get('joined_at') or "9999-12-31T23:59:59"
+        return (str(joined_at), int(cartela_number), str(user_id))
+
+    def choose_single_winner(self, winners: List[dict], players: Dict[str, dict]) -> Optional[dict]:
+        """Pick exactly one winner deterministically when multiple players hit on the same call."""
+        if not winners:
+            return None
+        return min(
+            winners,
+            key=lambda item: self._winner_sort_key(
+                item.get('user_id', ''),
+                item.get('cartela_number', 0),
+                players,
+            ),
+        )
+
+    def get_closest_contender(self, player_cartelas: Dict[str, List[dict]], called_numbers: List[int],
+                              players: Dict[str, dict]) -> Optional[dict]:
+        """Pick the closest single contender when the round reaches the hard 30-call cap without a natural winner."""
+        called_set = set(called_numbers)
+        best = None
+        best_key = None
+        for uid_str, cartelas in player_cartelas.items():
+            for entry in cartelas:
+                for pattern in self.get_cartela_patterns(entry.get('flat', [])):
+                    missing = [num for num in pattern if num not in called_set]
+                    sort_key = (
+                        len(missing),
+                        len(pattern),
+                        *self._winner_sort_key(uid_str, entry.get('cartela_number', 0), players),
+                    )
+                    if best_key is None or sort_key < best_key:
+                        best_key = sort_key
+                        best = {
+                            'user_id': uid_str,
+                            'cartela_number': int(entry.get('cartela_number', 0)),
+                            'missing_numbers': missing,
+                            'pattern_size': len(pattern),
+                        }
+        return best
 
     async def call_number(self, round_id: str) -> Optional[int]:
         """Call the next random number for the round."""
@@ -285,84 +383,54 @@ class RoundEngine:
         if not available:
             return None
 
-        # ── SMART STATISTIC PREDICTION: PREVENT MULTIPLE WINNERS ──
-        # Each round has a random game_target (15-30 numbers).
-        # Before target-3: prevent all winners (game too short)
-        # Near target (±3): allow 1 winner (sweet spot)
-        # Past target+3: game must end, accept minimum
+        # ── SMART STATISTIC PREDICTION: HARD-FINISH BETWEEN 15-30 ──
+        # Before target: keep the round alive with zero winners if possible.
+        # Target window: finish with exactly one winner if possible.
+        # Final call (30): choose the smallest positive winner set if possible;
+        # the API loop will still force exactly one paid winner if ties remain.
         num_called = len(called)
+        next_call_index = num_called + 1
         players = data.get('players', {})
-        game_target = data.get('game_target', 22)
-        
-        # 1. Warm up cache if needed to avoid DB reads
-        if not _CARTELA_CACHE:
-            try:
-                docs = self.master_ref.get()
-                for doc in docs:
-                    _CARTELA_CACHE[doc.id] = doc.to_dict().get('cartela', [])
-            except Exception:
-                pass
+        game_target = self.normalize_game_target(data.get('game_target'))
+        max_calls = GAME_LENGTH_RANGE[1]
+        player_cartelas = self.build_player_cartelas(players)
 
-        # 2. Gather active cartelas for quick evaluation
-        player_cartelas = {} # uid -> [flat_cartela_1, flat_cartela_2]
-        for uid_str, p_info in players.items():
-            player_cartelas[uid_str] = []
-            for cnum in p_info.get('cartelas', []):
-                ctype = str(cnum)
-                if ctype in _CARTELA_CACHE:
-                    player_cartelas[uid_str].append(_CARTELA_CACHE[ctype])
-                else:
-                    # Fallback lookup if not in cache
-                    cdoc = self.master_ref.document(ctype).get()
-                    if cdoc.exists:
-                        flat = cdoc.to_dict().get('cartela', [])
-                        _CARTELA_CACHE[ctype] = flat
-                        player_cartelas[uid_str].append(flat)
+        if data.get('game_target') != game_target:
+            self.rounds_ref.document(round_id).update({'game_target': game_target})
 
         random.shuffle(available)
         best_number = available[0]
-        min_winners = 9999
+        best_score = None
 
         for candidate in available:
             simulated_called = called + [candidate]
-            candidate_winners_count = 0
-            
-            for uid_str, cartelas_list in player_cartelas.items():
-                for flat in cartelas_list:
-                    if self.check_bingo_for_cartela(flat, simulated_called):
-                        candidate_winners_count += 1
-                        break # Only count the player once
-            
-            # Phase 1 (early game): ABSOLUTE zero — no winner allowed before target
-            if num_called < game_target - 3:
-                if candidate_winners_count == 0:
-                    best_number = candidate
-                    break
-                if candidate_winners_count < min_winners:
-                    min_winners = candidate_winners_count
-                    best_number = candidate
-                continue
-            
-            # Phase 2 (near target ±3): Target 0, allow 1 if impossible
-            if num_called < game_target + 3:
-                if candidate_winners_count == 0:
-                    best_number = candidate
-                    break
+            candidate_winners_count = len(self.evaluate_winners(player_cartelas, simulated_called))
+
+            if next_call_index < game_target:
+                candidate_score = (
+                    0 if candidate_winners_count == 0 else 1,
+                    candidate_winners_count,
+                )
+            elif next_call_index < max_calls:
                 if candidate_winners_count == 1:
                     best_number = candidate
-                    min_winners = 1
                     break
-                if candidate_winners_count < min_winners:
-                    min_winners = candidate_winners_count
+                candidate_score = (
+                    0 if candidate_winners_count == 0 else 1,
+                    candidate_winners_count,
+                )
+            else:
+                if candidate_winners_count == 1:
                     best_number = candidate
-                continue
-            
-            # Phase 3 (past target): Pick minimum, game must end
-            if candidate_winners_count < min_winners:
-                min_winners = candidate_winners_count
+                    break
+                candidate_score = (
+                    0 if candidate_winners_count > 0 else 1,
+                    candidate_winners_count if candidate_winners_count > 0 else 9999,
+                )
+
+            if best_score is None or candidate_score < best_score:
+                best_score = candidate_score
                 best_number = candidate
-            if min_winners == 0:
-                break
 
         number = best_number
         called.append(number)
@@ -376,6 +444,21 @@ class RoundEngine:
         })
 
         return number
+
+    def get_cartela_patterns(self, flat_cartela: List[int]) -> List[List[int]]:
+        """Return all winning patterns for a cartela as flat number lists."""
+        grid = []
+        for row in range(5):
+            grid.append(flat_cartela[row * 5:(row + 1) * 5])
+
+        patterns = []
+        patterns.extend([[num for num in row if num != 0] for row in grid])
+        for col in range(5):
+            patterns.append([grid[row][col] for row in range(5) if grid[row][col] != 0])
+        patterns.append([grid[i][i] for i in range(5) if grid[i][i] != 0])
+        patterns.append([grid[i][4 - i] for i in range(5) if grid[i][4 - i] != 0])
+        patterns.append([flat_cartela[0], flat_cartela[4], flat_cartela[20], flat_cartela[24]])
+        return patterns
 
     def check_bingo_for_cartela(self, flat_cartela: List[int], 
                                  called_numbers: List[int]) -> bool:

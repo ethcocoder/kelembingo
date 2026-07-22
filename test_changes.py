@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Test script to verify all changes are working correctly.
 Run: python test_changes.py
@@ -116,9 +116,9 @@ def test_no_bankers_rounding():
 
 
 def test_predictor_phases():
-    """Test that the predictor has 3 phases."""
+    """Test that the predictor enforces the 15-30 smart-finish contract."""
     print("\n" + "=" * 60)
-    print("TEST 5: Predictor Phase Logic")
+    print("TEST 5: Predictor Target Window")
     print("=" * 60)
     
     # Read the round_engine.py to check phase thresholds
@@ -127,36 +127,41 @@ def test_predictor_phases():
         with open(engine_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Check for phase thresholds
-        has_phase1 = 'num_called < 40' in content
-        has_phase2 = 'num_called < 55' in content
-        has_zero_target = 'candidate_winners_count == 0' in content
-        
-        if has_phase1:
-            print("  âœ“ Phase 1: Early game (num_called < 40)")
+        has_target_range = 'GAME_LENGTH_RANGE = (15, 30)' in content
+        has_target_normalizer = 'def normalize_game_target' in content
+        has_exact_one_winner = 'if candidate_winners_count == 1:' in content
+        has_hard_cap = 'elif next_call_index < max_calls:' in content and 'candidate_winners_count > 0' in content
+
+        if has_target_range:
+            print("  [OK] Round target range set to 15-30")
         else:
-            print("  âœ— Phase 1 not found")
-        
-        if has_phase2:
-            print("  âœ“ Phase 2: Mid game (num_called < 55)")
+            print("  [FAIL] 15-30 target range not found")
+
+        if has_target_normalizer:
+            print("  [OK] Backend normalizes game_target")
         else:
-            print("  âœ— Phase 2 not found")
-        
-        if has_zero_target:
-            print("  âœ“ Zero-winner target (candidate_winners_count == 0)")
+            print("  [FAIL] normalize_game_target not found")
+
+        if has_exact_one_winner:
+            print("  [OK] Predictor prefers exactly one winner")
         else:
-            print("  âœ— Zero-winner target not found")
-        
-        return has_phase1 and has_phase2 and has_zero_target
+            print("  [FAIL] Exact one-winner preference not found")
+
+        if has_hard_cap:
+            print("  [OK] Predictor has a hard final-call branch")
+        else:
+            print("  [FAIL] Hard cap branch not found")
+
+        return has_target_range and has_target_normalizer and has_exact_one_winner and has_hard_cap
     except Exception as e:
-        print(f"  âœ— Error reading engine: {e}")
+        print(f"  [FAIL] Error reading engine: {e}")
         return False
 
 
 def test_winner_collection():
-    """Test that admin_api collects ALL winners, not just the first."""
+    """Test that admin_api resolves rounds to a single winner."""
     print("\n" + "=" * 60)
-    print("TEST 6: Multiple Winner Collection")
+    print("TEST 6: Single Winner Resolution")
     print("=" * 60)
     
     api_path = os.path.join(os.path.dirname(__file__), 'api/admin_api.py')
@@ -164,30 +169,34 @@ def test_winner_collection():
         with open(api_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Check for multiple winner support
-        has_list = 'bingo_winners = []' in content
-        has_append = 'bingo_winners.append(uid_str)' in content
-        has_no_break = 'break' not in content.split('bingo_winners')[1].split('if bingo_winners')[0]
-        
-        if has_list:
-            print("  âœ“ Uses list for winners (bingo_winners = [])")
+        has_evaluate = 'winner_entries = engine.evaluate_winners' in content
+        has_single_choice = 'chosen_winner = engine.choose_single_winner' in content
+        has_forced_cap = "completion_reason = 'forced_single_winner_max_30'" in content
+        has_single_payout = "await engine.end_round(round_id, [int(winner_id)])" in content
+
+        if has_evaluate:
+            print("  [OK] Server evaluates natural winners")
         else:
-            print("  âœ— Missing winners list")
-        
-        has_append_result = has_append
-        if has_append_result:
-            print("  âœ“ Appends all winners (bingo_winners.append)")
+            print("  [FAIL] Natural winner evaluation not found")
+
+        if has_single_choice:
+            print("  [OK] Server tie-breaks to one winner")
         else:
-            print("  âœ— Missing append")
-        
-        if has_no_break:
-            print("  âœ“ No early break (checks all players)")
+            print("  [FAIL] Single-winner tie-break not found")
+
+        if has_forced_cap:
+            print("  [OK] Server forces completion at max 30 calls")
         else:
-            print("  âœ— Still has break statement in winner loop")
-        
-        return has_list and has_append_result
+            print("  [FAIL] Forced max-30 completion not found")
+
+        if has_single_payout:
+            print("  [OK] Payout path pays exactly one winner")
+        else:
+            print("  [FAIL] Single-winner payout path not found")
+
+        return has_evaluate and has_single_choice and has_forced_cap and has_single_payout
     except Exception as e:
-        print(f"  âœ— Error reading admin_api: {e}")
+        print(f"  [FAIL] Error reading admin_api: {e}")
         return False
 
 

@@ -40,29 +40,20 @@ async function playNow(stake) {
 
         var roundData, roundId;
         if (roundSnap.empty) {
-            var nowMs = serverNow();
             selectedCartelas = [];
             myCartelas = {};
             calledNumbers = new Set();
             _previewCache = {};
-            roundData = {
-                status: 'selecting',
-                stake: stake,
-                players: {},
-                player_count: 0,
-                taken_cartelas: [],
-                pending_selections: {},
-                called_numbers: [],
-                winners: [],
-                prize_per_winner: 0,
-                admin_profit: 0,
-                game_target: Math.floor(Math.random() * 16) + 15,
-                selection_deadline: new Date(nowMs + SELECTION_DURATION * 1000).toISOString(),
-                created_at: firebase.firestore.FieldValue.serverTimestamp(),
-                completed_at: null,
-            };
-            var ref = await db.collection('rounds').add(roundData);
-            roundId = ref.id;
+            var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+            var createRes = await fetch(apiBase + '/api/rounds/create?stake=' + encodeURIComponent(stake), {
+                method: 'POST'
+            });
+            var createData = await createRes.json();
+            if (!createRes.ok || !createData.round || !createData.round.id) {
+                throw new Error((createData && (createData.detail || createData.error)) || 'Could not create round');
+            }
+            roundData = createData.round;
+            roundId = roundData.id;
             currentRoundId = roundId;
             
             hideLoading();
