@@ -335,6 +335,82 @@ def test_playnow_guard():
         return False
 
 
+def test_web_deposit_flow():
+    """Test that web deposit flow mirrors the bot flow through backend APIs and modal UI."""
+    print("\n" + "=" * 60)
+    print("TEST 11: Web Deposit Flow")
+    print("=" * 60)
+
+    base_dir = os.path.dirname(__file__)
+    api_path = os.path.join(base_dir, 'api/admin_api.py')
+    wallet_js_path = os.path.join(base_dir, 'dashboard/js/wallet.js')
+    modal_path = os.path.join(base_dir, 'dashboard/components/deposit-modal.html')
+
+    try:
+        with open(api_path, 'r', encoding='utf-8') as f:
+            api_content = f.read()
+        with open(wallet_js_path, 'r', encoding='utf-8') as f:
+            wallet_content = f.read()
+        with open(modal_path, 'r', encoding='utf-8') as f:
+            modal_content = f.read()
+
+        has_config_api = '@app.get("/api/deposits/config/{user_id}"' in api_content
+        has_submit_api = '@app.post("/api/deposits/submit")' in api_content
+        has_dup_check = "deposit_duplicate_txn" in api_content
+        has_admin_notify = '_notify_admin_deposit_web' in api_content
+        has_modal_open = 'function requestDeposit()' in wallet_content
+        has_backend_submit = "/api/deposits/submit" in wallet_content
+        has_modal_txn = 'Transaction Number' in modal_content
+
+        if has_config_api:
+            print("  [OK] Backend exposes deposit config API")
+        else:
+            print("  [FAIL] Deposit config API not found")
+
+        if has_submit_api:
+            print("  [OK] Backend exposes deposit submit API")
+        else:
+            print("  [FAIL] Deposit submit API not found")
+
+        if has_dup_check:
+            print("  [OK] Backend checks duplicate transaction IDs")
+        else:
+            print("  [FAIL] Duplicate transaction check not found")
+
+        if has_admin_notify:
+            print("  [OK] Backend notifies admin for web deposits")
+        else:
+            print("  [FAIL] Admin notification helper not found")
+
+        if has_modal_open:
+            print("  [OK] Wallet opens deposit modal in-app")
+        else:
+            print("  [FAIL] Deposit modal opener not found")
+
+        if has_backend_submit:
+            print("  [OK] Wallet submits deposits through backend")
+        else:
+            print("  [FAIL] Wallet submit API call not found")
+
+        if has_modal_txn:
+            print("  [OK] Deposit modal asks for transaction number")
+        else:
+            print("  [FAIL] Deposit modal transaction field not found")
+
+        return all([
+            has_config_api,
+            has_submit_api,
+            has_dup_check,
+            has_admin_notify,
+            has_modal_open,
+            has_backend_submit,
+            has_modal_txn,
+        ])
+    except Exception as e:
+        print(f"  [FAIL] Error checking web deposit flow: {e}")
+        return False
+
+
 def main():
     print("\n" + "=" * 60)
     print("  BINGO GAME - COMPREHENSIVE TEST SUITE")
@@ -351,6 +427,7 @@ def main():
         ("Debouncing", test_debouncing),
         ("No Redundant DB Reads", test_no_redundant_db_reads),
         ("playNow Guard", test_playnow_guard),
+        ("Web Deposit Flow", test_web_deposit_flow),
     ]
     
     results = []

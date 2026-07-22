@@ -1,7 +1,127 @@
 // ==================== WALLET ====================
+var _depositConfig = {
+    phone: '0911000000',
+    pending_count: 0,
+    pending_limit: 3
+};
+
 function openDepositBot() {
-    if (tg) { tg.openTelegramLink('https://t.me/kelembingobot'); }
-    else { window.open('https://t.me/kelembingobot', '_blank'); }
+    requestDeposit();
+}
+
+function _setDepositStep(step) {
+    var stepOne = document.getElementById('depositStepOne');
+    var stepTwo = document.getElementById('depositStepTwo');
+    if (stepOne) stepOne.classList.toggle('hidden', step !== 1);
+    if (stepTwo) stepTwo.classList.toggle('hidden', step !== 2);
+}
+
+function _resetDepositModal() {
+    var amountEl = document.getElementById('depositAmount');
+    var txnEl = document.getElementById('depositTransactionId');
+    var nameEl = document.getElementById('depositTelebirrName');
+    if (amountEl) amountEl.value = '';
+    if (txnEl) txnEl.value = '';
+    if (nameEl) nameEl.value = (currentUser && (currentUser.telebirr_name || currentUser.first_name)) || '';
+    _setDepositStep(1);
+}
+
+function hideDepositModal() {
+    hideScreen('depositModal');
+    _resetDepositModal();
+}
+
+async function requestDeposit() {
+    if (!currentUser) { showToast('Loading user data...'); return; }
+    showLoading('Preparing deposit...');
+    try {
+        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        var res = await fetch(apiBase + '/api/deposits/config/' + encodeURIComponent(currentUser.id));
+        var data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Could not load deposit settings');
+        }
+
+        _depositConfig.phone = data.phone || _depositConfig.phone;
+        _depositConfig.pending_count = data.pending_count || 0;
+        _depositConfig.pending_limit = data.pending_limit || 3;
+
+        if (!data.ok) {
+            var depositErrors = {
+                too_many_pending: 'You already have too many pending deposits. Wait for review first.',
+                admin_offline: 'Admin is offline. Please try again later.'
+            };
+            showToast(depositErrors[data.error] || 'Deposit is not available right now');
+            return;
+        }
+
+        var pendingEl = document.getElementById('depositPendingCount');
+        var phoneEl = document.getElementById('depositTargetPhone');
+        var nameEl = document.getElementById('depositTelebirrName');
+        if (pendingEl) pendingEl.textContent = _depositConfig.pending_count + ' / ' + _depositConfig.pending_limit;
+        if (phoneEl) phoneEl.textContent = _depositConfig.phone;
+        if (nameEl) nameEl.value = (currentUser.telebirr_name || currentUser.first_name || '');
+        _setDepositStep(1);
+        document.getElementById('depositModal').classList.remove('hidden');
+    } catch (err) {
+        showToast('Error: ' + err.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+function continueDepositStep() {
+    var name = document.getElementById('depositTelebirrName').value.trim();
+    var amount = parseFloat(document.getElementById('depositAmount').value);
+    if (!name) { showToast('Enter TeleBirr full name'); return; }
+    if (!amount || amount < 10) { showToast('Minimum deposit is 10 ETB'); return; }
+
+    var amountEl = document.getElementById('depositSummaryAmount');
+    var phoneEl = document.getElementById('depositTargetPhone');
+    if (amountEl) amountEl.textContent = amount + ' ETB';
+    if (phoneEl) phoneEl.textContent = _depositConfig.phone || '0911000000';
+    _setDepositStep(2);
+}
+
+function backDepositStep() {
+    _setDepositStep(1);
+}
+
+async function submitDeposit() {
+    var name = document.getElementById('depositTelebirrName').value.trim();
+    var amount = parseFloat(document.getElementById('depositAmount').value);
+    var transactionId = document.getElementById('depositTransactionId').value.trim();
+
+    if (!name) { showToast('Enter TeleBirr full name'); return; }
+    if (!amount || amount < 10) { showToast('Minimum deposit is 10 ETB'); return; }
+    if (!transactionId || transactionId.length < 3) { showToast('Enter a valid transaction number'); return; }
+
+    showLoading('Submitting deposit...');
+    try {
+        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        var res = await fetch(apiBase + '/api/deposits/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                telebirr_name: name,
+                amount: amount,
+                transaction_id: transactionId
+            })
+        });
+        var data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Could not submit deposit');
+        }
+
+        hideDepositModal();
+        showToast('Deposit request submitted!');
+        if (typeof loadWalletTransactions === 'function') loadWalletTransactions();
+    } catch (err) {
+        showToast('Error: ' + err.message);
+    } finally {
+        hideLoading();
+    }
 }
 
 function requestWithdrawal() {
@@ -77,6 +197,77 @@ async function submitWithdrawal() {
 function showTransferModal() { document.getElementById('transfer-modal').classList.remove('hidden'); }
 function hideTransferModal() { document.getElementById('transfer-modal').classList.add('hidden'); }
 
+async function loadWalletTransactions() {
+    if (!currentUser) return;
+    var container = document.getElementById('transaction-list');
+    if (!container) return;
+
+    container.innerHTML = '<div class="glass rounded-xl p-4 text-center"><p class="text-white/30 text-sm">Loading transactions...</p></div>';
+    try {
+        var uid = String(currentUser.id);
+        var depositsSnap = await db.collection('deposits').where('userId', '==', uid).get();
+        var withdrawalsSnap = await db.collection('withdrawals').where('userId', '==', uid).get();
+        var items = [];
+
+        depositsSnap.forEach(function(doc) {
+            var d = doc.data();
+            items.push({
+                id: doc.id,
+                type: 'deposit',
+                amount: d.amount || 0,
+                status: d.status || 'pending',
+                createdAt: d.createdAt,
+                label: 'Deposit'
+            });
+        });
+
+        withdrawalsSnap.forEach(function(doc) {
+            var d = doc.data();
+            items.push({
+                id: doc.id,
+                type: 'withdraw',
+                amount: d.amount || 0,
+                status: d.status || 'pending',
+                createdAt: d.createdAt,
+                label: 'Withdraw'
+            });
+        });
+
+        items.sort(function(a, b) {
+            function toTime(value) {
+                if (!value) return 0;
+                if (value.toDate) return value.toDate().getTime();
+                if (value._iso) return new Date(value._iso).getTime();
+                return new Date(value).getTime() || 0;
+            }
+            return toTime(b.createdAt) - toTime(a.createdAt);
+        });
+
+        if (!items.length) {
+            container.innerHTML = '<div class="glass rounded-xl p-4 text-center"><p class="text-white/30 text-sm">No transactions yet</p></div>';
+            return;
+        }
+
+        container.innerHTML = items.slice(0, 8).map(function(item) {
+            var color = item.type === 'deposit' ? 'text-bingo-green' : 'text-bingo-orange';
+            var badge = item.status === 'approved' ? 'text-bingo-green' : (item.status === 'rejected' ? 'text-bingo-red' : 'text-bingo-yellow');
+            return '' +
+                '<div class="glass rounded-xl p-4 flex items-center justify-between gap-3">' +
+                    '<div>' +
+                        '<div class="text-sm font-semibold text-white">' + item.label + '</div>' +
+                        '<div class="text-xs ' + badge + ' uppercase">' + item.status + '</div>' +
+                    '</div>' +
+                    '<div class="text-right">' +
+                        '<div class="text-sm font-bold ' + color + '">' + item.amount + ' ETB</div>' +
+                        '<div class="text-[11px] text-white/35">#' + item.id.slice(0, 6) + '</div>' +
+                    '</div>' +
+                '</div>';
+        }).join('');
+    } catch (err) {
+        container.innerHTML = '<div class="glass rounded-xl p-4 text-center"><p class="text-red-400 text-sm">Could not load transactions</p></div>';
+    }
+}
+
 async function transferFunds(direction) {
     const amount = parseInt(document.getElementById('transfer-amount').value);
     if (!amount || amount < 1) { showToast('Enter a valid amount'); return; }
@@ -104,3 +295,9 @@ async function transferFunds(direction) {
         document.getElementById('transfer-amount').value = '';
     } catch (err) { showToast('Error: ' + err.message); }
 }
+
+document.addEventListener('pageLoaded', function(e) {
+    if (e.detail.screen === 'wallet' && currentUser) {
+        loadWalletTransactions();
+    }
+});

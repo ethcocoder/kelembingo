@@ -76,6 +76,7 @@ const PageLoader = {
             'win-modal': 'win-modal.html',
             'rules-modal': 'rules-modal.html',
             'transfer-modal': 'transfer-modal.html',
+            'depositModal': 'deposit-modal.html',
             'withdrawModal': 'withdraw-modal.html',
             'registerModal': 'register-modal.html',
             'card-select-screen': 'card-select.html',

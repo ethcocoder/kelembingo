@@ -254,6 +254,27 @@ assert(hasTimestampSort, 'Uses raw timestamp for sort (not formatted string)');
 var noStringSort = !paymentsSrc.includes('fmtDateFull(a.processedAt)');
 assert(noStringSort, 'Removed fmtDateFull from sort comparison');
 
+// ==================== TEST 15: Wallet Deposit Web Flow ====================
+console.log('');
+console.log('TEST 15: Wallet Deposit Modal Flow');
+console.log('------------------------------------------------------------');
+
+var walletSrc = readFile('dashboard/js/wallet.js');
+var walletPageSrc = readFile('dashboard/pages/wallet.html');
+var pageLoaderSrc = readFile('dashboard/js/page-loader.js');
+var gameHtmlSrc = readFile('dashboard/game.html');
+var depositModalSrc = readFile('dashboard/components/deposit-modal.html');
+
+assert(walletPageSrc.includes('onclick="requestDeposit()"'), 'Wallet deposit button opens the in-app deposit modal');
+assert(walletSrc.includes("'/api/deposits/config/'"), 'Wallet requests deposit config from backend');
+assert(walletSrc.includes("'/api/deposits/submit'"), 'Wallet submits deposits through backend API');
+assert(walletSrc.includes('continueDepositStep()'), 'Wallet has step transition for deposit flow');
+assert(walletSrc.includes('loadWalletTransactions()'), 'Wallet reloads recent transactions');
+assert(pageLoaderSrc.includes("'depositModal': 'deposit-modal.html'"), 'Page loader wires the deposit modal component');
+assert(gameHtmlSrc.includes('id="depositModal"'), 'Game shell includes deposit modal container');
+assert(depositModalSrc.includes('Transaction Number'), 'Deposit modal asks for transaction number');
+assert(depositModalSrc.includes('TeleBirr Number'), 'Deposit modal shows the TeleBirr target number');
+
 // ==================== SUMMARY ====================
 console.log('');
 console.log('============================================================');

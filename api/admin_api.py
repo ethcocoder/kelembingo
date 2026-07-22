@@ -16,6 +16,7 @@ from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFi
 
 from game.round_engine import RoundEngine, DEFAULT_STAKE, VALID_STAKES, SELECTION_DURATION, GAME_LENGTH_RANGE
 from handlers.user_manager import UserManager
+from handlers.bot_content import get_bot_text
 from datetime import datetime, timedelta, timezone
 from telegram import Bot
 # Firebase replaced by SQLAlchemy emulator (firestore_db.py)
@@ -144,6 +145,22 @@ class EndRoundRequest(BaseModel):
 class NotifyRequest(BaseModel):
     user_id: int
     text: str
+
+
+class DepositConfigResponse(BaseModel):
+    ok: bool
+    phone: str
+    admin_online: bool
+    pending_count: int
+    pending_limit: int
+    error: Optional[str] = None
+
+
+class DepositSubmitRequest(BaseModel):
+    user_id: int
+    telebirr_name: str
+    amount: float
+    transaction_id: str
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -760,6 +777,53 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(tz=timezone.utc).isoformat()}
 
 
+def _is_admin_online_sync() -> bool:
+    try:
+        doc = db.collection('system').document('admin_status').get()
+        if doc.exists:
+            return bool(doc.to_dict().get('online', True))
+    except Exception:
+        pass
+    return True
+
+
+def _get_pending_deposit_count(user_id: int) -> int:
+    pending = db.collection('deposits').where('userId', '==', str(user_id)).where('status', '==', 'pending').get()
+    return len(list(pending))
+
+
+async def _notify_admin_deposit_web(deposit_data: dict, deposit_id: str):
+    try:
+        text = get_bot_text(
+            'admin_deposit_notification',
+            db,
+            first_name=deposit_data.get('firstName', 'Unknown'),
+            username=deposit_data.get('username', ''),
+            telebirr_name=deposit_data.get('telebirrName', 'N/A'),
+            amount=deposit_data.get('amount', 0),
+            transaction_id=deposit_data.get('transactionId', 'N/A'),
+            deposit_id=deposit_id,
+            timestamp=datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
+        )
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "✅ Approve", "callback_data": f"approve_{deposit_id}"},
+                    {"text": "❌ Reject", "callback_data": f"reject_{deposit_id}"},
+                ]
+            ]
+        }
+        bot = Bot(token=ADMIN_BOT_TOKEN) if ADMIN_BOT_TOKEN else Bot(token=BOT_TOKEN)
+        await bot.send_message(
+            chat_id=int(ADMIN_CHAT_ID),
+            text=text,
+            parse_mode='Markdown',
+            reply_markup=keyboard,
+        )
+    except Exception as e:
+        logger.warning(f"[NotifyAdminDeposit] Error: {e}")
+
+
 @app.head("/")
 async def head_root():
     return Response(status_code=200)
@@ -796,6 +860,112 @@ async def validate_withdrawal(user_id: str, amount: float):
         return result
     except Exception as e:
         return {"ok": True}
+
+
+@app.get("/api/deposits/config/{user_id}", response_model=DepositConfigResponse)
+async def get_deposit_config(user_id: int):
+    """Return the live web deposit settings and guardrails used by the Telegram bot flow."""
+    user = await user_manager.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    pending_limit = 3
+    pending_count = _get_pending_deposit_count(user_id)
+    admin_online = _is_admin_online_sync()
+    phone = get_bot_text('deposit_phone', db)
+
+    if pending_count >= pending_limit:
+        return DepositConfigResponse(
+            ok=False,
+            phone=phone,
+            admin_online=admin_online,
+            pending_count=pending_count,
+            pending_limit=pending_limit,
+            error='too_many_pending',
+        )
+
+    if not admin_online:
+        return DepositConfigResponse(
+            ok=False,
+            phone=phone,
+            admin_online=admin_online,
+            pending_count=pending_count,
+            pending_limit=pending_limit,
+            error='admin_offline',
+        )
+
+    return DepositConfigResponse(
+        ok=True,
+        phone=phone,
+        admin_online=admin_online,
+        pending_count=pending_count,
+        pending_limit=pending_limit,
+    )
+
+
+@app.post("/api/deposits/submit")
+async def submit_deposit(req: DepositSubmitRequest):
+    """Submit a pending deposit request using the same core rules as the Telegram bot flow."""
+    user = await user_manager.get_user(req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    pending_limit = 3
+    pending_count = _get_pending_deposit_count(req.user_id)
+    if pending_count >= pending_limit:
+        raise HTTPException(status_code=400, detail=get_bot_text('deposit_too_many', db))
+
+    if not _is_admin_online_sync():
+        raise HTTPException(status_code=400, detail=get_bot_text('deposit_admin_offline', db))
+
+    telebirr_name = (req.telebirr_name or '').strip()
+    if not telebirr_name:
+        raise HTTPException(status_code=400, detail=get_bot_text('deposit_ask_name', db))
+
+    amount = float(req.amount)
+    if amount < 10:
+        raise HTTPException(status_code=400, detail=get_bot_text('deposit_min_amount', db))
+
+    transaction_id = (req.transaction_id or '').strip()
+    if len(transaction_id) < 3:
+        raise HTTPException(status_code=400, detail=get_bot_text('deposit_invalid_number', db))
+
+    dup = db.collection('deposits').where('transactionId', '==', transaction_id).limit(1).get()
+    if list(dup):
+        raise HTTPException(status_code=400, detail=get_bot_text('deposit_duplicate_txn', db))
+
+    deposit_data = {
+        'userId': str(req.user_id),
+        'username': user.get('username', ''),
+        'firstName': user.get('first_name', ''),
+        'telebirrName': telebirr_name,
+        'amount': amount,
+        'transactionId': transaction_id,
+        'senderName': user.get('first_name', 'Unknown'),
+        'status': 'pending',
+        'createdAt': datetime.now(tz=timezone.utc),
+        'processedAt': None,
+        'adminNote': '',
+    }
+    deposit_ref = db.collection('deposits').document()
+    deposit_ref.set(deposit_data)
+
+    await _notify_admin_deposit_web(deposit_data, deposit_ref.id)
+
+    return {
+        "ok": True,
+        "deposit_id": deposit_ref.id,
+        "status": "pending",
+        "phone": get_bot_text('deposit_phone', db),
+        "message": get_bot_text(
+            'deposit_submitted',
+            db,
+            amount=amount,
+            telebirr_name=telebirr_name,
+            transaction_id=transaction_id,
+            deposit_id=deposit_ref.id,
+        ),
+    }
 
 
 @app.get("/api/admin/deposits")
