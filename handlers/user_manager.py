@@ -38,6 +38,9 @@ class UserManager:
         user_doc = self.users_ref.document(str(user_id)).get()
         return user_doc.to_dict() if user_doc.exists else None
 
+    async def user_exists(self, user_id: int) -> bool:
+        return self.users_ref.document(str(user_id)).get().exists
+
     async def update_balance(self, user_id: int, amount: float) -> bool:
         user = await self.get_user(user_id)
         if not user:
@@ -315,22 +318,47 @@ class UserManager:
         })
         return etb
 
-    async def add_referral_bonus(self, referrer_id: int, bonus_amount: float) -> bool:
-        user = await self.get_user(referrer_id)
-        if not user:
-            return False
-        self.users_ref.document(str(referrer_id)).update({
-            'balance': user.get('balance', 0) + bonus_amount,
-            'updated_at': datetime.now(tz=timezone.utc),
-        })
-        return True
-
     async def set_referred_by(self, new_user_id: int, referrer_id: int) -> bool:
+        """Attribute a referrer to a user, but only once (never overwrite)."""
+        user = await self.get_user(new_user_id)
+        if not user or user.get('referred_by'):
+            return False
         self.users_ref.document(str(new_user_id)).update({
             'referred_by': referrer_id,
             'updated_at': datetime.now(tz=timezone.utc),
         })
         return True
+
+    async def credit_referral(self, new_user_id: int, bonus_amount: float) -> Optional[int]:
+        """
+        Reward the referrer when their invited user registers — exactly once.
+
+        Returns the referrer's id if a bonus was granted, otherwise None.
+        """
+        user = await self.get_user(new_user_id)
+        if not user:
+            return None
+        referrer_id = user.get('referred_by')
+        if not referrer_id or user.get('referral_credited'):
+            return None
+        referrer = await self.get_user(referrer_id)
+        if not referrer:
+            return None
+
+        self.users_ref.document(str(referrer_id)).update({
+            'balance': referrer.get('balance', 0) + bonus_amount,
+            'referrals': referrer.get('referrals', 0) + 1,
+            'updated_at': datetime.now(tz=timezone.utc),
+        })
+        self.users_ref.document(str(new_user_id)).update({
+            'referral_credited': True,
+            'updated_at': datetime.now(tz=timezone.utc),
+        })
+        return referrer_id
+
+    async def get_referral_count(self, user_id: int) -> int:
+        user = await self.get_user(user_id)
+        return int(user.get('referrals', 0)) if user else 0
 
     async def set_awaiting_screenshot(self, user_id: int, awaiting: bool) -> None:
         self.users_ref.document(str(user_id)).update({

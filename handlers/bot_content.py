@@ -90,7 +90,8 @@ DEFAULTS = {
     "bonus_convert_failed": "❌ Conversion failed. No bonus available.",
 
     # ── Invite ──
-    "invite_link": "🔗 Your Referral Link\n\n{link}\n\nShare this link with friends!\nYou earn {referral_bonus} ETB for each friend who registers.",
+    "invite_link": "🔗 *Invite & Earn*\n\nShare your personal link and earn *{referral_bonus} ETB* for every friend who joins and registers:\n\n{link}\n\n👥 Friends invited: *{count}*\n💰 Bonus earned: *{earned} ETB*\n\nTap *Share invite link* below, or copy the link and send it to your friends!",
+    "referral_earned": "🎉 *Referral Bonus!*\n\n{name} just joined Kelem Bingo using your link.\nYou earned *{bonus} ETB* 🎁\n\nKeep inviting friends to earn more!",
 
     # ── Support ──
     "support_info": "🆘 Need help?\n\n👇 For any questions or feedback 👇\n\n👤 @{support_username}",
@@ -114,7 +115,7 @@ DEFAULTS = {
     "cancel": "Cancelled.",
 
     # ── Instruction ──
-    "instruction": "📖 *How to Play Kelem Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallets:*\n• Main Wallet — deposit here via TeleBirr\n• Play Wallet — transfer from main to play\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into Play Wallet",
+    "instruction": "📖 *How to Play Kelem Bingo*\n\n1️⃣ Tap *Play 🎮* and choose your stake (10 or 20 ETB)\n2️⃣ Pick up to *2 cartelas* during the 35-second selection window\n3️⃣ When the round starts, a new number is called every *5 seconds*\n4️⃣ Mark called numbers on your card — the center is a *free space*\n5️⃣ Complete a full *row, column, or diagonal*, then tap *BINGO* to claim the win!\n\n🏆 *Derash (Prize):* the winner takes *75%* of the total stake pool\n👥 The more players in a round, the bigger the Derash\n\n💰 *Wallets*\n• *Main Wallet* — deposit & withdraw via TeleBirr\n• *Play Wallet* — move funds here to join rounds\n• *Bonus* — earned by inviting friends\n\n🔗 *Invite:* share your link and earn *{referral_bonus} ETB* for every friend who registers\n📤 *Transfer:* send funds to another user by ID\n🔄 *Convert Bonus:* turn bonus coins into Play Wallet balance\n\nNeed help? Type /support anytime.",
 
     # ── Admin Confirmations ──
     "admin_deposit_not_found": "❌ Deposit not found.",

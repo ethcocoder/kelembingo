@@ -3,6 +3,7 @@ import os
 import re
 import hashlib
 import asyncio
+from urllib.parse import quote
 from datetime import datetime, timezone
 
 from telegram import (
@@ -63,17 +64,16 @@ def _admin_id():
 # ═══════════════════════════════════════════════════════════════════
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    existed = await user_manager.user_exists(user.id)
     u = await user_manager.get_or_create_user(user.id, user.first_name, user.username or "")
 
-    # Referral tracking
-    if context.args and context.args[0].startswith("ref_"):
+    # Referral tracking — only attribute a referrer to brand-new users, once.
+    # The referrer is rewarded later, when this user completes registration.
+    if not existed and context.args and context.args[0].startswith("ref_"):
         try:
             referrer_id = int(context.args[0][4:])
-            if referrer_id != user.id:
+            if referrer_id != user.id and await user_manager.get_user(referrer_id):
                 await user_manager.set_referred_by(user.id, referrer_id)
-                ref_user = await user_manager.get_user(referrer_id)
-                if ref_user:
-                    await user_manager.add_referral_bonus(referrer_id, REFERRAL_BONUS)
         except (ValueError, IndexError):
             pass
 
@@ -191,6 +191,20 @@ async def reg_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         get_bot_text('register_complete', db, name=name, phone=phone),
         reply_markup=MAIN_KEYBOARD,
     )
+
+    # Reward the referrer (once) now that the invited user has registered.
+    referral_bonus = get_config_value('cfg_referral_bonus', db, as_type=int)
+    referrer_id = await user_manager.credit_referral(update.effective_user.id, referral_bonus)
+    if referrer_id:
+        try:
+            await context.bot.send_message(
+                chat_id=int(referrer_id),
+                text=get_bot_text('referral_earned', db, name=name, bonus=referral_bonus),
+                parse_mode='Markdown',
+            )
+        except Exception as e:
+            logger.warning(f"Could not notify referrer {referrer_id}: {e}")
+
     return ConversationHandler.END
 
 
@@ -663,9 +677,25 @@ async def handle_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = context.bot.username if context.bot else "YourBotUsername"
     link = f"https://t.me/{bot_username}?start=ref_{uid}"
     referral_bonus = get_config_value('cfg_referral_bonus', db, as_type=int)
+    count = await user_manager.get_referral_count(uid)
+    earned = count * referral_bonus
+
+    share_text = quote(
+        f"🎮 Join me on Kelem Bingo and let's win together! Play now:"
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            "📨 Share invite link",
+            url=f"https://t.me/share/url?url={quote(link, safe='')}&text={share_text}",
+        )],
+    ])
     await update.effective_message.reply_text(
-        get_bot_text('invite_link', db, link=link, referral_bonus=referral_bonus),
-        reply_markup=MAIN_KEYBOARD, parse_mode='Markdown',
+        get_bot_text(
+            'invite_link', db,
+            link=link, referral_bonus=referral_bonus,
+            count=count, earned=earned,
+        ),
+        reply_markup=kb, parse_mode='Markdown',
     )
 
 
@@ -678,8 +708,9 @@ async def handle_instruction(update: Update, context: ContextTypes.DEFAULT_TYPE)
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🏠 Menu", callback_data="menu_back")],
     ])
+    referral_bonus = get_config_value('cfg_referral_bonus', db, as_type=int)
     await update.effective_message.reply_text(
-        get_bot_text('instruction', db),
+        get_bot_text('instruction', db, referral_bonus=referral_bonus),
         reply_markup=kb, parse_mode='Markdown',
     )
 
