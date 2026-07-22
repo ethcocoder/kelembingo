@@ -401,6 +401,11 @@ class RoundEngine:
         if all(is_marked(grid[i][4 - i]) for i in range(5)):
             return True
 
+        # Check 4 corners (free space does NOT count for corners)
+        corners = [flat_cartela[0], flat_cartela[4], flat_cartela[20], flat_cartela[24]]
+        if all(c != 0 and c in called_set for c in corners):
+            return True
+
         return False
 
     async def check_bingo(self, round_id: str, user_id: int) -> dict:

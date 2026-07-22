@@ -370,6 +370,8 @@ function checkBingoLocal(flat, called) {
     for (var c = 0; c < 5; c++) { if (grid.every(function(row) { return isM(row[c]); })) return true; }
     if ([0,1,2,3,4].every(function(i) { return isM(grid[i][i]); })) return true;
     if ([0,1,2,3,4].every(function(i) { return isM(grid[i][4-i]); })) return true;
+    var corners = [[0,0],[0,4],[4,0],[4,4]];
+    if (corners.every(function(pos) { var n = grid[pos[0]][pos[1]]; return n !== 0 && calledSet.has(n); })) return true;
     return false;
 }
 
