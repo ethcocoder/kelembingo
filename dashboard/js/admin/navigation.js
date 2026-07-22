@@ -7,7 +7,8 @@ var sectionTitles = {
     reports: 'Reports',
     payments: 'Payments',
     settings: 'Settings',
-    botcontent: 'Bot Content'
+    botcontent: 'Bot Content',
+    backup: 'Data Backup'
 };
 
 function switchSection(name) {
@@ -32,6 +33,7 @@ function switchSection(name) {
     if (name === 'cartelas') loadCartelaPool();
     if (name === 'payments') loadPayments();
     if (name === 'botcontent') loadBotCategory('config');
+    if (name === 'backup') loadBackupStatus();
 }
 
 // Restore section from URL hash on page load

@@ -1259,6 +1259,53 @@ async def save_bot_content(key: str, req: SettingsRequest):
     return {"ok": True}
 
 
+# ═══════════════════════════════════════════════════════════════
+# JSON Backup / Restore (survives Render's ephemeral-disk wipes)
+# ═══════════════════════════════════════════════════════════════
+class RestoreRequest(BaseModel):
+    overwrite: bool = False
+    confirm: bool = False
+
+
+@app.get("/api/admin/backup/status")
+def backup_status():
+    """Metadata about the latest pinned backup (no download)."""
+    import backup_common as bc
+    status = bc.get_status()
+    status["enabled"] = bool(bc.BACKUP_CHAT_ID)
+    status["live_documents"] = bc.firestore_db.count_documents()
+    return status
+
+
+@app.post("/api/admin/backup/create")
+def backup_create():
+    """Snapshot the DB now and pin it in the backup bot."""
+    import backup_common as bc
+    try:
+        meta = bc.create_backup()
+        return {"ok": True, **meta}
+    except bc.BackupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/admin/backup/restore")
+def backup_restore(req: RestoreRequest):
+    """
+    Restore from the latest pinned backup. overwrite=True (replacing live data)
+    additionally requires confirm=True to guard against accidental clobbering.
+    """
+    import backup_common as bc
+    if req.overwrite and not req.confirm:
+        raise HTTPException(status_code=400, detail="Overwrite restore requires confirmation.")
+    try:
+        result = bc.restore_latest(overwrite=req.overwrite)
+        if not result.get("restored") and result.get("reason") == "no_backup":
+            raise HTTPException(status_code=404, detail="No backup found to restore.")
+        return {"ok": True, **result}
+    except bc.BackupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ─── Dashboard & game (served from same service as API + bots) ───
 
 
