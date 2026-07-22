@@ -176,6 +176,10 @@
                 <span class="nav-icon text-lg w-6 text-center flex-shrink-0">🤖</span>
                 <span class="nav-label whitespace-nowrap overflow-hidden">Bot Content</span>
             </a>
+            <a class="nav-item flex items-center gap-3 px-5 py-3 text-sm font-medium border-r-3 text-gray-400" data-section="backup" onclick="switchSection('backup')">
+                <span class="nav-icon text-lg w-6 text-center flex-shrink-0">💾</span>
+                <span class="nav-label whitespace-nowrap overflow-hidden">Backup</span>
+            </a>
         </div>
     </nav>
 
@@ -751,6 +755,54 @@
     </div>
 </div>
 
+<!-- ==================== BACKUP SECTION ==================== -->
+<div id="section-backup" class="section">
+    <div class="max-w-[900px] mx-auto mt-6">
+        <div class="mb-6">
+            <h3 class="text-2xl font-bold">Data Backup</h3>
+            <p class="text-gray-500 text-sm mt-1">Your database is snapshotted to the backup bot so nothing is lost when the server redeploys. Backups run automatically; you can also back up or restore manually here.</p>
+        </div>
+
+        <!-- Status card -->
+        <div class="glass rounded-2xl p-6 mb-6">
+            <div class="flex items-center justify-between mb-6">
+                <h4 class="text-lg font-bold flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-[#10B981]/10 flex items-center justify-center text-sm">💾</span>
+                    Latest Backup
+                </h4>
+                <button onclick="loadBackupStatus()" class="px-3 py-1.5 rounded-lg glass text-xs font-semibold text-gray-400 hover:text-white transition-all">↻ Refresh</button>
+            </div>
+            <div id="backupStatus" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center py-6 col-span-full text-gray-600 text-sm">Loading backup status…</div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass rounded-2xl p-6">
+                <h4 class="text-lg font-bold mb-2 flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-[#3B82F6]/10 flex items-center justify-center text-sm">⬆️</span>
+                    Back Up Now
+                </h4>
+                <p class="text-xs text-gray-500 mb-5">Save a fresh snapshot of all current data to the backup bot and pin it as the latest restore point.</p>
+                <button id="backupNowBtn" onclick="runBackupNow()" class="btn-grad w-full py-3 rounded-xl text-sm font-semibold">Create Backup</button>
+            </div>
+            <div class="glass rounded-2xl p-6">
+                <h4 class="text-lg font-bold mb-2 flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center text-sm">⬇️</span>
+                    Restore
+                </h4>
+                <p class="text-xs text-gray-500 mb-4">Seed data from the latest backup. <span class="text-gray-400">Safe restore</span> only adds records that are missing and never touches live data.</p>
+                <label class="flex items-center gap-2 mb-4 cursor-pointer select-none">
+                    <input type="checkbox" id="backupOverwrite" class="w-4 h-4 accent-[#8B5CF6]">
+                    <span class="text-xs text-[#F59E0B]">Overwrite existing records (replaces live data)</span>
+                </label>
+                <button id="restoreBtn" onclick="runRestore()" class="btn-purple-g w-full py-3 rounded-xl text-sm font-semibold">Restore From Backup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 </div> <!-- end mainContent -->
 
 <!-- ==================== MODALS ==================== -->
@@ -925,6 +977,7 @@
 <script src="js/admin/settings.js"></script>
 <script src="js/admin/payments.js"></script>
 <script src="js/admin/botcontent.js"></script>
+<script src="js/admin/backup.js"></script>
 <script src="js/admin/navigation.js"></script>
 <script src="js/admin/listeners.js"></script>
 </body>

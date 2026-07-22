@@ -486,3 +486,83 @@ class DocumentRef:
         if isinstance(val, list):
             return [self._serialize_val(v) for v in val]
         return val
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Whole-database export / import (used by the JSON backup workflow)
+# ═══════════════════════════════════════════════════════════════════
+def export_all() -> dict:
+    """
+    Dump every stored document to a plain dict:
+        { collection_name: { doc_id: {..data..}, ... }, ... }
+
+    The `system_events` audit trail is intentionally excluded — only the
+    document store is backed up.
+    """
+    sess = SessionLocal()
+    try:
+        out: dict = {}
+        for row in sess.query(FirestoreDocument).all():
+            try:
+                data = json.loads(row.data) if row.data else {}
+            except Exception:
+                data = {}
+            out.setdefault(row.collection, {})[row.doc_id] = data
+        return out
+    finally:
+        sess.close()
+
+
+def count_documents() -> int:
+    """Total number of stored documents (used to detect an empty DB)."""
+    sess = SessionLocal()
+    try:
+        return sess.query(FirestoreDocument).count()
+    finally:
+        sess.close()
+
+
+def import_all(dump: dict, overwrite: bool = False) -> dict:
+    """
+    Seed documents from an export_all()-shaped dict.
+
+    overwrite=False (default): only insert documents that don't already exist
+    (safe restore — never clobbers newer live data).
+    overwrite=True: replace existing documents with the backup's version.
+
+    Returns {'inserted': n, 'skipped': n, 'overwritten': n}.
+    """
+    stats = {'inserted': 0, 'skipped': 0, 'overwritten': 0}
+    if not isinstance(dump, dict):
+        return stats
+    sess = SessionLocal()
+    try:
+        for collection, docs in dump.items():
+            if not isinstance(docs, dict):
+                continue
+            for doc_id, data in docs.items():
+                existing = sess.query(FirestoreDocument).filter(
+                    FirestoreDocument.collection == collection,
+                    FirestoreDocument.doc_id == str(doc_id),
+                ).first()
+                payload = json.dumps(data if isinstance(data, dict) else {})
+                if existing:
+                    if overwrite:
+                        existing.data = payload
+                        stats['overwritten'] += 1
+                    else:
+                        stats['skipped'] += 1
+                else:
+                    sess.add(FirestoreDocument(
+                        collection=collection,
+                        doc_id=str(doc_id),
+                        data=payload,
+                    ))
+                    stats['inserted'] += 1
+        sess.commit()
+        return stats
+    except Exception:
+        sess.rollback()
+        raise
+    finally:
+        sess.close()
