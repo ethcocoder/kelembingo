@@ -292,8 +292,8 @@ class RoundEngine:
                 docs = self.master_ref.get()
                 for doc in docs:
                     _CARTELA_CACHE[doc.id] = doc.to_dict().get('cartela', [])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load cartela master cache: {e}", exc_info=True)
 
         player_cartelas = {}
         for uid_str, p_info in (players or {}).items():
