@@ -201,7 +201,7 @@ _CONFIG_DEFAULTS = {
     'cfg_withdraw_cooldown_hours': 4,
     'cfg_referral_bonus': 10,
     'cfg_bonus_to_etb_rate': 10,
-    'cfg_support_username': 'kelemsupport',
+    'cfg_support_username': 'kelemsupportbot',
 }
 
 
