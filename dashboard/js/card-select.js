@@ -56,6 +56,7 @@ async function playNow(stake) {
                 winners: [],
                 prize_per_winner: 0,
                 admin_profit: 0,
+                game_target: Math.floor(Math.random() * 16) + 15,
                 selection_deadline: new Date(nowMs + SELECTION_DURATION * 1000).toISOString(),
                 created_at: firebase.firestore.FieldValue.serverTimestamp(),
                 completed_at: null,

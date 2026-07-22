@@ -25,6 +25,7 @@ SELECTION_DURATION = 35          # seconds for card selection phase
 NUMBER_CALL_INTERVAL = 5        # seconds between each called number (5s countdown)
 MAX_CARTELAS_PER_PLAYER = 2
 BINGO_NUMBERS = range(1, 76)    # 1-75
+GAME_LENGTH_RANGE = (15, 30)    # random target: each round ends between 15-30 numbers
 
 _CARTELA_CACHE = {}  # Global in-memory cache for all 500 cartela structures
 
@@ -285,11 +286,13 @@ class RoundEngine:
             return None
 
         # ── SMART STATISTIC PREDICTION: PREVENT MULTIPLE WINNERS ──
-        # Phase 1 (<=39 called): ABSOLUTE zero tolerance — no winner allowed
-        # Phase 2 (40-54 called): Target 0, allow 1 if unavoidable
-        # Phase 3 (55+ called): Target minimum winners (game must end eventually)
+        # Each round has a random game_target (15-30 numbers).
+        # Before target-3: prevent all winners (game too short)
+        # Near target (±3): allow 1 winner (sweet spot)
+        # Past target+3: game must end, accept minimum
         num_called = len(called)
         players = data.get('players', {})
+        game_target = data.get('game_target', 22)
         
         # 1. Warm up cache if needed to avoid DB reads
         if not _CARTELA_CACHE:
@@ -330,8 +333,8 @@ class RoundEngine:
                         candidate_winners_count += 1
                         break # Only count the player once
             
-            # Phase 1 (early game): ABSOLUTE zero — no winner allowed before 40 numbers
-            if num_called < 40:
+            # Phase 1 (early game): ABSOLUTE zero — no winner allowed before target
+            if num_called < game_target - 3:
                 if candidate_winners_count == 0:
                     best_number = candidate
                     break
@@ -340,20 +343,21 @@ class RoundEngine:
                     best_number = candidate
                 continue
             
-            # Phase 2 (mid game): Target 0, allow 1 if impossible
-            if num_called < 55:
+            # Phase 2 (near target ±3): Target 0, allow 1 if impossible
+            if num_called < game_target + 3:
                 if candidate_winners_count == 0:
                     best_number = candidate
                     break
-                if candidate_winners_count <= 1 and min_winners > 1:
+                if candidate_winners_count == 1:
                     best_number = candidate
-                    min_winners = candidate_winners_count
+                    min_winners = 1
+                    break
                 if candidate_winners_count < min_winners:
                     min_winners = candidate_winners_count
                     best_number = candidate
                 continue
             
-            # Phase 3 (late game): Pick minimum, game must end
+            # Phase 3 (past target): Pick minimum, game must end
             if candidate_winners_count < min_winners:
                 min_winners = candidate_winners_count
                 best_number = candidate
