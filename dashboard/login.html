@@ -327,7 +327,7 @@
                     localStorage.setItem('loggedIn', 'true');
                     localStorage.setItem('username', SUPER_ADMIN.username);
                     localStorage.setItem('role', SUPER_ADMIN.role);
-                    window.location.href = 'index.html';
+                    window.location.href = '/';
                     return;
                 }
 
@@ -355,7 +355,7 @@
                 localStorage.setItem('username', adminData.username || username);
                 localStorage.setItem('role', adminData.role || 'admin');
 
-                window.location.href = 'index.html';
+                window.location.href = '/';
 
             } catch (err) {
                 console.error('Login error:', err);

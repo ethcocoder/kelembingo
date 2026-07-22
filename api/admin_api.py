@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_ORIGINS = [
     "https://kelembingo.onrender.com",
-    "https://kelem-bingo-api.onrender.com",  # Keep for legacy redirects
 ]  # Clients now connect from window.location.origin (same service)
 
 
@@ -1286,13 +1285,28 @@ async def dashboard_home():
     return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
 
 
+@app.get("/index.html")
+async def dashboard_home_alias():
+    return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
+
+
 @app.get("/game")
 async def game_page():
     return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
 
 
+@app.get("/game.html")
+async def game_page_alias():
+    return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
+
+
 @app.get("/login")
 async def login_page():
+    return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
+
+
+@app.get("/login.html")
+async def login_page_alias():
     return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
 
 

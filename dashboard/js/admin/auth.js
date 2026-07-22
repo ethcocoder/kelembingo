@@ -1,7 +1,7 @@
 // ==================== AUTH CHECK ====================
 (function () {
     if (localStorage.getItem('loggedIn') !== 'true') {
-        window.location.href = 'login.html';
+        window.location.href = '/login';
         return;
     }
     var u = localStorage.getItem('username') || 'Admin';
@@ -20,5 +20,5 @@ function logout() {
     localStorage.removeItem('loggedIn');
     localStorage.removeItem('username');
     localStorage.removeItem('role');
-    window.location.href = 'login.html';
+    window.location.href = '/login';
 }
