@@ -689,14 +689,19 @@ async def handle_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
             url=f"https://t.me/share/url?url={quote(link, safe='')}&text={share_text}",
         )],
     ])
-    await update.effective_message.reply_text(
-        get_bot_text(
-            'invite_link', db,
-            link=link, referral_bonus=referral_bonus,
-            count=count, earned=earned,
-        ),
-        reply_markup=kb, parse_mode='Markdown',
+    text = get_bot_text(
+        'invite_link', db,
+        link=link, referral_bonus=referral_bonus,
+        count=count, earned=earned,
     )
+    try:
+        await update.effective_message.reply_text(
+            text, reply_markup=kb, parse_mode='Markdown',
+        )
+    except Exception as e:
+        # Never leave the button unresponsive if Markdown parsing fails.
+        logger.warning(f"Invite Markdown send failed, sending plain text: {e}")
+        await update.effective_message.reply_text(text, reply_markup=kb)
 
 
 # ═══════════════════════════════════════════════════════════════════

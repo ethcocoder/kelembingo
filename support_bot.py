@@ -25,10 +25,18 @@ logger = logging.getLogger(__name__)
 from config import db  # noqa: F401
 import support_common as sc
 
+# Public admin username shown to users who want to reach the admin directly.
+ADMIN_PUBLIC_USERNAME = "Kelembingo"
+
+ADMIN_KEYBOARD = InlineKeyboardMarkup([
+    [InlineKeyboardButton("👤 Talk to the admin", url=f"https://t.me/{ADMIN_PUBLIC_USERNAME}")],
+])
+
 WELCOME = (
     "👋 *Kelem Support*\n\n"
     "Send us your question or problem and our team will reply here.\n\n"
-    f"ℹ️ You can send up to *{sc.DAILY_QUESTION_LIMIT} messages per day*."
+    f"ℹ️ You can send up to *{sc.DAILY_QUESTION_LIMIT} messages per day*.\n\n"
+    f"Need more help? Talk to the admin: @{ADMIN_PUBLIC_USERNAME}"
 )
 
 SENT = (
@@ -47,7 +55,7 @@ LIMIT_REACHED = (
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     sc.register_support_user(user, update.effective_chat.id)
-    await update.message.reply_text(WELCOME, parse_mode='Markdown')
+    await update.message.reply_text(WELCOME, parse_mode='Markdown', reply_markup=ADMIN_KEYBOARD)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -61,7 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     allowed, remaining = sc.try_consume_quota(user.id)
     if not allowed:
-        await update.message.reply_text(LIMIT_REACHED)
+        await update.message.reply_text(LIMIT_REACHED, reply_markup=ADMIN_KEYBOARD)
         return
 
     ticket_id = sc.record_message(user, chat_id, text, direction='user')
@@ -72,7 +80,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Failed to notify admin about ticket {ticket_id}: {e}")
 
     await update.message.reply_text(
-        SENT.format(remaining=remaining), parse_mode='Markdown'
+        SENT.format(remaining=remaining), parse_mode='Markdown',
+        reply_markup=ADMIN_KEYBOARD,
     )
 
 
