@@ -209,29 +209,23 @@ _CONFIG_DEFAULTS = {
 def get_config_value(key: str, db=None, as_type=int):
     """
     Get a system config value from Firestore (cfg_* keys).
-    Uses the same cache as bot messages. Falls back to _CONFIG_DEFAULTS.
+
+    Always reads live from the database (no caching). Config values such as the
+    minimum withdrawal are edited by admins from the dashboard and must take
+    effect immediately — the bot and API run in separate processes, so a cached
+    value in one process would not be invalidated when the admin saves a change.
+    These values are only read on user actions (withdraw/deposit/invite), never
+    in a hot loop, so reading live has negligible cost.
+
     as_type: int, float, or str — used to cast the stored string value.
     """
-    global _cache
-
-    # Check cache
-    if key in _cache:
-        text, expiry = _cache[key]
-        if time.time() < expiry:
-            try:
-                return as_type(text)
-            except (ValueError, TypeError):
-                return _CONFIG_DEFAULTS.get(key, text)
-
-    # Try Firestore
+    # Try Firestore (live, uncached)
     if db:
         try:
             doc = db.collection('bot_content').document(key).get()
             if doc.exists:
-                data = doc.to_dict()
-                text = data.get('content', '')
-                if text:
-                    _cache[key] = (text, time.time() + _cache_ttl)
+                text = doc.to_dict().get('content', '')
+                if text != '' and text is not None:
                     try:
                         return as_type(text)
                     except (ValueError, TypeError):
@@ -240,8 +234,4 @@ def get_config_value(key: str, db=None, as_type=int):
             logger.warning(f"Failed to fetch config/{key}: {e}")
 
     # Fall back to default
-    default = _CONFIG_DEFAULTS.get(key)
-    if default is not None:
-        _cache[key] = (str(default), time.time() + _cache_ttl)
-        return default
-    return None
+    return _CONFIG_DEFAULTS.get(key)
