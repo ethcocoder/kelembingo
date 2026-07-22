@@ -90,7 +90,7 @@ DEFAULTS = {
     "bonus_convert_failed": "❌ Conversion failed. No bonus available.",
 
     # ── Invite ──
-    "invite_link": "🔗 *Invite & Earn*\n\nShare your personal link and earn *{referral_bonus} ETB* for every friend who joins and registers:\n\n{link}\n\n👥 Friends invited: *{count}*\n💰 Bonus earned: *{earned} ETB*\n\nTap *Share invite link* below, or copy the link and send it to your friends!",
+    "invite_link": "🔗 *Invite & Earn*\n\nShare your personal link and earn *{referral_bonus} ETB* for every friend who joins and registers:\n\n`{link}`\n\n👥 Friends invited: *{count}*\n💰 Bonus earned: *{earned} ETB*\n\nTap *Share invite link* below, or copy the link and send it to your friends!",
     "referral_earned": "🎉 *Referral Bonus!*\n\n{name} just joined Kelem Bingo using your link.\nYou earned *{bonus} ETB* 🎁\n\nKeep inviting friends to earn more!",
 
     # ── Support ──
