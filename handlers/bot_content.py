@@ -90,8 +90,8 @@ DEFAULTS = {
     "bonus_convert_failed": "❌ Conversion failed. No bonus available.",
 
     # ── Invite ──
-    "invite_link": "🔗 *Invite & Earn*\n\nShare your personal link and earn *{referral_bonus} ETB* for every friend who joins and registers:\n\n`{link}`\n\n👥 Friends invited: *{count}*\n💰 Bonus earned: *{earned} ETB*\n\nTap *Share invite link* below, or copy the link and send it to your friends!",
-    "referral_earned": "🎉 *Referral Bonus!*\n\n{name} just joined Kelem Bingo using your link.\nYou earned *{bonus} ETB* 🎁\n\nKeep inviting friends to earn more!",
+    "invite_link": "🔗 *Invite Friends*\n\nShare your personal link and invite your friends to play Kelem Bingo:\n\n`{link}`\n\n👥 Friends invited: *{count}*\n\nTap *Share invite link* below, or copy the link and send it to your friends!",
+    "referral_joined": "🎉 *New Friend Joined!*\n\n{name} just joined Kelem Bingo using your invite link.\n\nKeep inviting friends to grow the game!",
 
     # ── Support ──
     "support_info": "🆘 Need help?\n\n👇 For any questions or feedback 👇\n\n👤 @{support_username}",
@@ -115,7 +115,7 @@ DEFAULTS = {
     "cancel": "Cancelled.",
 
     # ── Instruction ──
-    "instruction": "📖 *How to Play Kelem Bingo*\n\n1️⃣ Tap *Play 🎮* and choose your stake (10 or 20 ETB)\n2️⃣ Pick up to *2 cartelas* during the 35-second selection window\n3️⃣ When the round starts, a new number is called every *5 seconds*\n4️⃣ Mark called numbers on your card — the center is a *free space*\n5️⃣ Complete a full *row, column, or diagonal*, then tap *BINGO* to claim the win!\n\n🏆 *Derash (Prize):* the winner takes *75%* of the total stake pool\n👥 The more players in a round, the bigger the Derash\n\n💰 *Wallets*\n• *Main Wallet* — deposit & withdraw via TeleBirr\n• *Play Wallet* — move funds here to join rounds\n• *Bonus* — earned by inviting friends\n\n🔗 *Invite:* share your link and earn *{referral_bonus} ETB* for every friend who registers\n📤 *Transfer:* send funds to another user by ID\n🔄 *Convert Bonus:* turn bonus coins into Play Wallet balance\n\nNeed help? Type /support anytime.",
+    "instruction": "📖 *How to Play Kelem Bingo*\n\n1️⃣ Tap *Play 🎮* and choose your stake (10 or 20 ETB)\n2️⃣ Pick up to *2 cartelas* during the 35-second selection window\n3️⃣ When the round starts, a new number is called every *5 seconds*\n4️⃣ Mark called numbers on your card — the center is a *free space*\n5️⃣ Complete a full *row, column, or diagonal*, then tap *BINGO* to claim the win!\n\n🏆 *Derash (Prize):* the winner takes *75%* of the total stake pool\n👥 The more players in a round, the bigger the Derash\n\n💰 *Wallets*\n• *Main Wallet* — deposit & withdraw via TeleBirr\n• *Play Wallet* — move funds here to join rounds\n\n🔗 *Invite:* share your link and invite friends to play\n📤 *Transfer:* send funds to another user by ID\n🔄 *Convert Bonus:* turn bonus coins into Play Wallet balance\n\nNeed help? Type /support anytime.",
 
     # ── Admin Confirmations ──
     "admin_deposit_not_found": "❌ Deposit not found.",

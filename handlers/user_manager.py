@@ -329,11 +329,12 @@ class UserManager:
         })
         return True
 
-    async def credit_referral(self, new_user_id: int, bonus_amount: float) -> Optional[int]:
+    async def count_referral(self, new_user_id: int) -> Optional[int]:
         """
-        Reward the referrer when their invited user registers — exactly once.
+        Record a completed referral when the invited user registers — once.
 
-        Returns the referrer's id if a bonus was granted, otherwise None.
+        Only increments the referrer's invited-friends count. No bonus/ETB is
+        awarded. Returns the referrer's id if this was a new referral, else None.
         """
         user = await self.get_user(new_user_id)
         if not user:
@@ -346,7 +347,6 @@ class UserManager:
             return None
 
         self.users_ref.document(str(referrer_id)).update({
-            'balance': referrer.get('balance', 0) + bonus_amount,
             'referrals': referrer.get('referrals', 0) + 1,
             'updated_at': datetime.now(tz=timezone.utc),
         })

@@ -192,14 +192,14 @@ async def reg_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_KEYBOARD,
     )
 
-    # Reward the referrer (once) now that the invited user has registered.
-    referral_bonus = get_config_value('cfg_referral_bonus', db, as_type=int)
-    referrer_id = await user_manager.credit_referral(update.effective_user.id, referral_bonus)
+    # Record the referral (once) now that the invited user has registered.
+    # Invitation tracking only — no bonus/ETB is awarded.
+    referrer_id = await user_manager.count_referral(update.effective_user.id)
     if referrer_id:
         try:
             await context.bot.send_message(
                 chat_id=int(referrer_id),
-                text=get_bot_text('referral_earned', db, name=name, bonus=referral_bonus),
+                text=get_bot_text('referral_joined', db, name=name),
                 parse_mode='Markdown',
             )
         except Exception as e:
@@ -676,9 +676,7 @@ async def handle_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     bot_username = context.bot.username if context.bot else "YourBotUsername"
     link = f"https://t.me/{bot_username}?start=ref_{uid}"
-    referral_bonus = get_config_value('cfg_referral_bonus', db, as_type=int)
     count = await user_manager.get_referral_count(uid)
-    earned = count * referral_bonus
 
     share_text = quote(
         f"🎮 Join me on Kelem Bingo and let's win together! Play now:"
@@ -689,11 +687,7 @@ async def handle_invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
             url=f"https://t.me/share/url?url={quote(link, safe='')}&text={share_text}",
         )],
     ])
-    text = get_bot_text(
-        'invite_link', db,
-        link=link, referral_bonus=referral_bonus,
-        count=count, earned=earned,
-    )
+    text = get_bot_text('invite_link', db, link=link, count=count)
     try:
         await update.effective_message.reply_text(
             text, reply_markup=kb, parse_mode='Markdown',
@@ -713,9 +707,8 @@ async def handle_instruction(update: Update, context: ContextTypes.DEFAULT_TYPE)
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🏠 Menu", callback_data="menu_back")],
     ])
-    referral_bonus = get_config_value('cfg_referral_bonus', db, as_type=int)
     await update.effective_message.reply_text(
-        get_bot_text('instruction', db, referral_bonus=referral_bonus),
+        get_bot_text('instruction', db),
         reply_markup=kb, parse_mode='Markdown',
     )
 
