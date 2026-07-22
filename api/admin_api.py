@@ -14,7 +14,7 @@ import datetime
 from config import db, BOT_TOKEN
 from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFilter, Increment, ArrayUnion
 
-from game.round_engine import RoundEngine, DEFAULT_STAKE, VALID_STAKES, SELECTION_DURATION, GAME_LENGTH_RANGE
+from game.round_engine import RoundEngine, DEFAULT_STAKE, VALID_STAKES, SELECTION_DURATION
 from handlers.user_manager import UserManager
 from datetime import datetime, timedelta, timezone
 from telegram import Bot
@@ -196,7 +196,6 @@ async def _game_loop(round_id: str):
                             'game_started_at': now,
                             'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
                             'pending_selections': {},
-                            'game_target': random.randint(GAME_LENGTH_RANGE[0], GAME_LENGTH_RANGE[1]),
                         })
                         await broadcast_event('rounds', round_id)
                         break
@@ -223,7 +222,6 @@ async def _game_loop(round_id: str):
                                 'game_started_at': now,
                                 'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
                                 'pending_selections': {},
-                                'game_target': random.randint(GAME_LENGTH_RANGE[0], GAME_LENGTH_RANGE[1]),
                             })
                             await broadcast_event('rounds', round_id)
                             break
