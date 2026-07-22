@@ -29,14 +29,17 @@ import support_common as sc
 ADMIN_PUBLIC_USERNAME = "Kelembingo"
 
 ADMIN_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("👤 Talk to the admin", url=f"https://t.me/{ADMIN_PUBLIC_USERNAME}")],
+    [InlineKeyboardButton("👤 አስተዳዳሪውን ያነጋግሩ", url=f"https://t.me/{ADMIN_PUBLIC_USERNAME}")],
 ])
+
+# Amharic prompt inviting the user to contact the admin directly for more help.
+ADMIN_CONTACT_AM = f"የበለጠ ማውራት ከፈለጉ አስተዳዳሪውን ያነጋግሩ: @{ADMIN_PUBLIC_USERNAME}"
 
 WELCOME = (
     "👋 *Kelem Support*\n\n"
     "Send us your question or problem and our team will reply here.\n\n"
     f"ℹ️ You can send up to *{sc.DAILY_QUESTION_LIMIT} messages per day*.\n\n"
-    f"Need more help? Talk to the admin: @{ADMIN_PUBLIC_USERNAME}"
+    f"{ADMIN_CONTACT_AM}"
 )
 
 SENT = (

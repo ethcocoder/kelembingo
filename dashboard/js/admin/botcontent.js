@@ -72,7 +72,7 @@ var BOT_CONTENT_DEFAULTS = {
         bonus_convert_failed: { label: 'Convert Failed', default: '❌ Conversion failed. No bonus available.', vars: '' },
     },
     invite: {
-        invite_link: { label: 'Referral Link', default: '🔗 Your Referral Link\n\n{link}\n\nShare this link with friends!\nYou earn {referral_bonus} ETB for each friend who registers.', vars: 'link, referral_bonus' },
+        invite_link: { label: 'Invite Link', default: '🔗 *Invite Friends*\n\nShare your personal link and invite your friends to play Kelem Bingo:\n\n`{link}`\n\n👥 Friends invited: *{count}*\n\nTap *Share invite link* below, or copy the link and send it to your friends!', vars: 'link, count' },
     },
     support: {
         support_info: { label: 'Support Info', default: '🆘 Need help?\n\n👇 For any questions or feedback 👇\n\n👤 @{support_username}', vars: 'support_username' },
@@ -109,7 +109,7 @@ var VAR_SAMPLES = {
     wins: '8', losses: '17', win_rate: '32%', bonus: '150', stake: '10',
     players: '12', coins: '500', rate: '10', etb: '50', link: 'https://t.me/YourBotUsername?start=ref_123',
     referral_bonus: '10', support_username: 'kelemsupport', limit: '3',
-    minutes: '30', hours: '4', max: '50000', min_deposit: '50', current_deposit: '10'
+    minutes: '30', hours: '4', max: '50000', min_deposit: '50', current_deposit: '10', count: '5'
 };
 
 var VAR_LABELS = {
@@ -121,7 +121,7 @@ var VAR_LABELS = {
     bonus: 'Bonus Coins', stake: 'Stake', players: 'Player Count', coins: 'Bonus Coins',
     rate: 'Conversion Rate', etb: 'ETB Amount', link: 'Referral Link',
     referral_bonus: 'Referral Bonus', support_username: 'Support Username',
-    limit: 'Daily Limit', minutes: 'Minutes', hours: 'Hours', max: 'Max Amount', min_deposit: 'Min Deposit', current_deposit: 'Current Deposit'
+    limit: 'Daily Limit', minutes: 'Minutes', hours: 'Hours', max: 'Max Amount', min_deposit: 'Min Deposit', current_deposit: 'Current Deposit', count: 'Friends Invited'
 };
 
 // ── Inject CSS for variable chips ──
