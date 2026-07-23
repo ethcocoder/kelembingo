@@ -444,34 +444,26 @@ class RoundEngine:
                             'target_winner': target_winner,
                         })
 
-                best_number = available[0]
-                best_score = None
-
-                for candidate in available:
-                    simulated = called + [candidate]
-                    wc = len(self.evaluate_winners(player_cartelas, simulated))
-
+                # Fast path: only try target pattern's missing numbers
+                picked = None
+                target_numbers = [n for n in (target_winner.get('pattern', []) if target_winner else [])
+                                 if n in available]
+                for candidate in target_numbers:
+                    wc = len(self.evaluate_winners(player_cartelas, called + [candidate]))
                     if wc == 1:
-                        best_number = candidate
+                        picked = candidate
                         break
+                    if wc == 0 and picked is None:
+                        picked = candidate
 
-                    progress = self._candidate_progress(player_cartelas, simulated)
-                    is_target = (
-                        1 if (target_winner
-                              and candidate in target_winner.get('pattern', []))
-                        else 0
-                    )
-
-                    score = (
-                        0 if wc == 0 else 1,
-                        -is_target,
-                        -progress,
-                    )
-                    if best_score is None or score < best_score:
-                        best_score = score
-                        best_number = candidate
-
-                number = best_number
+                if picked is not None:
+                    number = picked
+                else:
+                    random.shuffle(available)
+                    for candidate in available:
+                        if len(self.evaluate_winners(player_cartelas, called + [candidate])) == 0:
+                            number = candidate
+                            break
 
         called.append(number)
         now = datetime.now(tz=timezone.utc)
