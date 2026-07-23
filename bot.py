@@ -82,8 +82,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_reg:
         # Already registered — show full menu
         pw = u.get('play_wallet', 0)
-        bal = u.get('balance', 0)
-        text = get_bot_text('welcome_registered', db, name=user.first_name, balance=bal, play_wallet=pw)
+        text = get_bot_text('welcome_registered', db, name=user.first_name, balance=pw, play_wallet=pw)
         await update.effective_message.reply_text(text, reply_markup=MAIN_INLINE_KEYBOARD, parse_mode='Markdown')
     else:
         # New user — needs registration, show banner
@@ -228,9 +227,8 @@ async def handle_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"💼 *Account Info*\n\n"
         f"Name:       {info['first_name']}\n"
-        f"Main wallet: {info['balance']:.1f}\n"
-        f"Play wallet: {info['play_wallet']:.1f}\n"
-        f"Coin:        {info['bonus']}"
+        f"Balance:    {info['balance']:.1f} ETB\n"
+        f"Coin:       {info['bonus']}"
     )
 
     await update.effective_message.reply_text(
@@ -409,7 +407,7 @@ async def _show_withdraw_flow_msg(update: Update, context: ContextTypes.DEFAULT_
         )
         return ConversationHandler.END
 
-    bal = u.get('balance', 0)
+    bal = u.get('play_wallet', 0)
     await update.effective_message.reply_text(
         get_bot_text('withdraw_ask_amount', db, balance=bal, min_withdraw=min_withdraw),
         reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown',
@@ -439,7 +437,7 @@ async def _show_withdraw_flow(query, context):
             await context.bot.send_message(chat_id=query.message.chat_id, text=text)
         return ConversationHandler.END
 
-    bal = u.get('balance', 0)
+    bal = u.get('play_wallet', 0)
     try:
         await query.edit_message_text(get_bot_text('withdraw_ask_amount', db, balance=bal, min_withdraw=min_withdraw))
     except Exception:
@@ -485,7 +483,7 @@ async def _process_withdraw(update, context, uid, amount, phone):
         return ConversationHandler.END
 
     user_ref = db.collection('users').document(str(uid))
-    user_ref.update({'balance': Increment(-amount), 'updated_at': datetime.now(tz=timezone.utc)})
+    user_ref.update({'play_wallet': Increment(-amount), 'updated_at': datetime.now(tz=timezone.utc)})
 
     withdrawal_data = {
         'userId': str(uid),
@@ -523,7 +521,7 @@ async def handle_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(get_bot_text('play_need_start', db), reply_markup=MAIN_KEYBOARD)
         return ConversationHandler.END
 
-    bal = u.get('balance', 0)
+    bal = u.get('play_wallet', 0)
     if bal < 1:
         await update.effective_message.reply_text(
             get_bot_text('transfer_no_balance', db, balance=bal),
@@ -572,7 +570,7 @@ async def transfer_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = update.effective_user.id
     u = await user_manager.get_user(uid)
-    bal = u.get('balance', 0) if u else 0
+    bal = u.get('play_wallet', 0) if u else 0
 
     if amount < 1 or amount > bal:
         await update.effective_message.reply_text(get_bot_text('transfer_amount_range', db, balance=bal))
@@ -743,8 +741,7 @@ async def handle_menu_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await user_manager.get_or_create_user(uid, update.effective_user.first_name, update.effective_user.username or "")
         u = await user_manager.get_user(uid)
     pw = u.get('play_wallet', 0)
-    bal = u.get('balance', 0)
-    text = get_bot_text('welcome_registered', db, name=update.effective_user.first_name, balance=bal, play_wallet=pw)
+    text = get_bot_text('welcome_registered', db, name=update.effective_user.first_name, balance=pw, play_wallet=pw)
     await update.effective_message.reply_text(text, reply_markup=MAIN_INLINE_KEYBOARD, parse_mode='Markdown')
 
 
@@ -838,7 +835,7 @@ async def admin_approve_deposit(update: Update, context: ContextTypes.DEFAULT_TY
         amount = data.get('amount', 0)
         if user_id and amount > 0:
             user_ref = db.collection('users').document(str(user_id))
-            user_ref.update({'balance': Increment(amount), 'updated_at': datetime.now(tz=timezone.utc)})
+            user_ref.update({'play_wallet': Increment(amount), 'updated_at': datetime.now(tz=timezone.utc)})
             try:
                 await context.bot.send_message(chat_id=int(user_id), text=get_bot_text('deposit_approved', db, amount=amount))
             except Exception:
@@ -929,7 +926,7 @@ async def admin_reject_withdraw(update: Update, context: ContextTypes.DEFAULT_TY
         amount = data.get('amount', 0)
         if user_id and amount > 0:
             user_ref = db.collection('users').document(str(user_id))
-            user_ref.update({'balance': Increment(amount), 'updated_at': datetime.now(tz=timezone.utc)})
+            user_ref.update({'play_wallet': Increment(amount), 'updated_at': datetime.now(tz=timezone.utc)})
         if user_id:
             try:
                 await context.bot.send_message(chat_id=int(user_id), text=get_bot_text('withdraw_rejected', db, amount=amount))
@@ -1015,7 +1012,7 @@ async def handle_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     win_rate = f"{(wins / total * 100):.1f}%" if total > 0 else "N/A"
 
     text = get_bot_text('stats_title', db, total=total, wins=wins, losses=losses,
-        win_rate=win_rate, balance=u.get('balance', 0), play_wallet=u.get('play_wallet', 0), bonus=u.get('bonus', 0))
+        win_rate=win_rate, balance=u.get('play_wallet', 0), play_wallet=u.get('play_wallet', 0), bonus=u.get('bonus', 0))
     await update.effective_message.reply_text(text, reply_markup=MAIN_KEYBOARD, parse_mode='Markdown')
 
 

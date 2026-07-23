@@ -1,7 +1,6 @@
 // ==================== DISPLAY UPDATES ====================
 function updateAllDisplays() {
     if (!currentUser) return;
-    var bal = currentUser.balance || 0;
     var pw = currentUser.play_wallet || 0;
     
     function setText(id, text) {
@@ -9,9 +8,9 @@ function updateAllDisplays() {
         if (el) el.textContent = text;
     }
     
-    setText('home-balance', bal + ' ETB');
+    setText('home-balance', pw + ' ETB');
     setText('home-play-wallet', pw + ' ETB');
-    setText('wallet-balance', bal + ' ETB');
+    setText('wallet-balance', pw + ' ETB');
     setText('wallet-play', pw + ' ETB');
     setText('user-greeting', 'Hello, ' + (currentUser.first_name || 'Player') + '!');
     setText('profile-name', currentUser.first_name || 'Player');

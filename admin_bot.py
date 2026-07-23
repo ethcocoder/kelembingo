@@ -155,7 +155,7 @@ async def process_deposit(deposit_id, status, query):
             if status == "approved" and user_id and amount > 0:
                 user_ref = db.collection('users').document(str(user_id))
                 transaction.update(user_ref, {
-                    'balance': firestore.Increment(amount),
+                    'play_wallet': firestore.Increment(amount),
                     'updated_at': datetime.now(tz=timezone.utc),
                 })
             result['user_id'] = user_id
@@ -233,7 +233,7 @@ async def process_withdrawal(wid, status, query, context):
             if status == "rejected" and user_id and amount > 0:
                 user_ref = db.collection('users').document(str(user_id))
                 transaction.update(user_ref, {
-                    'balance': firestore.Increment(amount),
+                    'play_wallet': firestore.Increment(amount),
                     'updated_at': datetime.now(tz=timezone.utc),
                 })
             result['user_id'] = user_id

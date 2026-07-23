@@ -182,7 +182,7 @@ async function showCardSelection(roundId, roundData) {
     var el;
     if (el = document.getElementById('cs-stake')) el.textContent = currentStake + ' ETB';
     if (el = document.getElementById('cs-derash')) el.textContent = estimatedETB + ' ETB';
-    if (el = document.getElementById('cs-main-wallet')) el.textContent = (currentUser.balance || 0) + ' ETB';
+    if (el = document.getElementById('cs-main-wallet')) el.textContent = (currentUser.play_wallet || 0) + ' ETB';
     if (el = document.getElementById('cs-play-wallet')) el.textContent = (currentUser.play_wallet || 0) + ' ETB';
     if (el = document.getElementById('cs-preview-container')) el.classList.add('hidden');
     if (el = document.getElementById('card-select-screen')) el.classList.remove('hidden');

@@ -48,7 +48,7 @@ class AdminHandlers:
         users = self.db.collection('users').get()
 
         total_users = len(list(users))
-        total_balance = sum(user.to_dict().get('balance', 0) for user in self.db.collection('users').get())
+        total_balance = sum(user.to_dict().get('play_wallet', 0) for user in self.db.collection('users').get())
 
         text = f"""📊 *Admin Dashboard*
 
@@ -92,7 +92,7 @@ Select action: """
         for user in users[:10]:
             user_data = user.to_dict()
             keyboard.append([InlineKeyboardButton(
-                f"{user_data.get('first_name', 'Unknown')} (Balance: {user_data.get('balance', 0)} ETB)",
+                f"{user_data.get('first_name', 'Unknown')} (Balance: {user_data.get('play_wallet', 0)} ETB)",
                 callback_data=f"admin_select_{user.id}"
             )])
 

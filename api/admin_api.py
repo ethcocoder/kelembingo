@@ -736,8 +736,8 @@ async def get_rounds(limit: int = 20):
 async def get_dashboard():
     """Get dashboard overview."""
     users = await user_manager.get_all_users()
-    total_balance = sum(u.get('balance', 0) for u in users)
     total_play = sum(u.get('play_wallet', 0) for u in users)
+    total_balance = total_play
     total_wins = sum(u.get('wins', 0) for u in users)
     active_playing = sum(1 for u in users if u.get('is_playing'))
 
@@ -1017,7 +1017,7 @@ async def admin_approve_deposit(deposit_id: str, req: DepositActionRequest):
         raise HTTPException(status_code=404, detail="User not found")
     user_data = user_snap.to_dict()
     db.collection('users').document(user_id).update({
-        'balance': (user_data.get('balance', 0) or 0) + amount,
+        'play_wallet': (user_data.get('play_wallet', 0) or 0) + amount,
         'updated_at': datetime.now(tz=timezone.utc).isoformat()
     })
     db.collection('deposits').document(deposit_id).update({
@@ -1177,7 +1177,7 @@ async def admin_reject_withdrawal(withdrawal_id: str, req: DepositActionRequest)
         if user_snap.exists:
             u = user_snap.to_dict()
             db.collection('users').document(user_id).update({
-                'balance': (u.get('balance', 0) or 0) + amount,
+                'play_wallet': (u.get('play_wallet', 0) or 0) + amount,
                 'updated_at': datetime.now(tz=timezone.utc).isoformat()
             })
     try:
@@ -1198,7 +1198,7 @@ async def admin_edit_balance(user_id: int, req: BalanceEditRequest):
     if not snap.exists:
         raise HTTPException(status_code=404, detail="User not found")
     db.collection('users').document(str(user_id)).update({
-        'balance': req.new_balance,
+        'play_wallet': req.new_balance,
         'updated_at': datetime.now(tz=timezone.utc).isoformat()
     })
     return {"ok": True}

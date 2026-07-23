@@ -125,7 +125,7 @@ async function submitDeposit() {
 }
 
 function requestWithdrawal() {
-    const bal = currentUser ? currentUser.balance || 0 : 0;
+    const bal = currentUser ? currentUser.play_wallet || 0 : 0;
     document.getElementById('withdraw-available').textContent = bal + ' ETB';
     document.getElementById('withdrawModal').classList.remove('hidden');
 }
@@ -158,10 +158,10 @@ async function submitWithdrawal() {
         } catch (e) { console.warn('Validation API failed, proceeding:', e); }
         const userRef = db.collection('users').doc(String(currentUser.id));
         const snap = await userRef.get();
-        const bal = (snap.data().balance || 0);
+        const bal = (snap.data().play_wallet || 0);
         if (amount > bal) { showToast('Insufficient balance!'); return; }
         await userRef.update({
-            balance: bal - amount,
+            play_wallet: bal - amount,
             updated_at: firebase.firestore.FieldValue.serverTimestamp()
         });
         const withdrawRef = await db.collection('withdrawals').add({
@@ -269,31 +269,9 @@ async function loadWalletTransactions() {
 }
 
 async function transferFunds(direction) {
-    const amount = parseInt(document.getElementById('transfer-amount').value);
-    if (!amount || amount < 1) { showToast('Enter a valid amount'); return; }
-    const userRef = db.collection('users').doc(String(currentUser.id));
-    try {
-        const snap = await userRef.get();
-        const u = snap.data();
-        if (direction === 'toPlay') {
-            if ((u.balance || 0) < amount) { showToast('Insufficient balance!'); return; }
-            await userRef.update({
-                balance: (u.balance || 0) - amount,
-                play_wallet: (u.play_wallet || 0) + amount,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        } else {
-            if ((u.play_wallet || 0) < amount) { showToast('Insufficient play wallet!'); return; }
-            await userRef.update({
-                play_wallet: (u.play_wallet || 0) - amount,
-                balance: (u.balance || 0) + amount,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        }
-        hideTransferModal();
-        showToast('Transfer successful!');
-        document.getElementById('transfer-amount').value = '';
-    } catch (err) { showToast('Error: ' + err.message); }
+    showToast('Wallet system simplified — deposits & withdrawals use your play wallet directly. No transfer needed.');
+    hideTransferModal();
+    document.getElementById('transfer-amount').value = '';
 }
 
 document.addEventListener('pageLoaded', function(e) {

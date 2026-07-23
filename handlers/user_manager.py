@@ -45,31 +45,30 @@ class UserManager:
         user = await self.get_user(user_id)
         if not user:
             return False
-        new_balance = user.get('balance', 0) + amount
+        new_balance = user.get('play_wallet', 0) + amount
         if new_balance < 0:
             return False
         self.users_ref.document(str(user_id)).update({
-            'balance': new_balance,
+            'play_wallet': new_balance,
             'updated_at': datetime.now(tz=timezone.utc),
         })
         return True
 
     async def deduct_balance(self, user_id: int, amount: float) -> bool:
         user = await self.get_user(user_id)
-        if not user or user.get('balance', 0) < amount:
+        if not user or user.get('play_wallet', 0) < amount:
             return False
         self.users_ref.document(str(user_id)).update({
-            'balance': user['balance'] - amount,
+            'play_wallet': user['play_wallet'] - amount,
             'updated_at': datetime.now(tz=timezone.utc),
         })
         return True
 
     async def transfer_to_play_wallet(self, user_id: int, amount: float) -> bool:
         user = await self.get_user(user_id)
-        if not user or user.get('balance', 0) < amount:
+        if not user or user.get('play_wallet', 0) < amount:
             return False
         self.users_ref.document(str(user_id)).update({
-            'balance': user['balance'] - amount,
             'play_wallet': user.get('play_wallet', 0) + amount,
             'updated_at': datetime.now(tz=timezone.utc),
         })
@@ -129,7 +128,7 @@ class UserManager:
             if not user.get('phone'):
                 return {'ok': False, 'error': 'no_phone'}
 
-            bal = float(user.get('balance', 0))
+            bal = float(user.get('play_wallet', 0))
             if float(amount) < min_withdraw:
                 return {'ok': False, 'error': 'below_min', 'min': min_withdraw, 'balance': bal}
             if float(amount) > bal:
@@ -267,9 +266,10 @@ class UserManager:
         user = await self.get_user(user_id)
         if not user:
             return None
+        pw = user.get('play_wallet', 0)
         return {
-            'balance': user.get('balance', 0),
-            'play_wallet': user.get('play_wallet', 0),
+            'balance': pw,
+            'play_wallet': pw,
             'bonus': user.get('bonus', 0),
             'first_name': user.get('first_name', ''),
         }
@@ -288,15 +288,15 @@ class UserManager:
             if not sender_snap.exists or not recipient_snap.exists:
                 return False
             sender_data = sender_snap.to_dict()
-            if sender_data.get('balance', 0) < amount:
+            if sender_data.get('play_wallet', 0) < amount:
                 return False
             txn.update(sender_ref, {
-                'balance': sender_data['balance'] - amount,
+                'play_wallet': sender_data['play_wallet'] - amount,
                 'updated_at': datetime.now(tz=timezone.utc),
             })
             recipient_data = recipient_snap.to_dict()
             txn.update(recipient_ref, {
-                'balance': recipient_data.get('balance', 0) + amount,
+                'play_wallet': recipient_data.get('play_wallet', 0) + amount,
                 'updated_at': datetime.now(tz=timezone.utc),
             })
             return True
