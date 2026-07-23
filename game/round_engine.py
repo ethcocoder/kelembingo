@@ -275,18 +275,18 @@ class RoundEngine:
         return {'status': 'playing', 'player_count': player_count, 'derash': derash, 'game_target': game_target}
 
     def normalize_game_target(self, game_target: Optional[int] = None) -> int:
-        """Pick the call number where Phase 2 (targeted winner) starts.
-        Randomized between 15-27 so there is room for 1-3 completion
-        calls within the 30-call cap."""
+        """Return a random call number between 15-30 where Phase 2
+        (targeted winner making) begins. The exact game-end depends
+        on how many extra calls Phase 2 needs to complete the target
+        pattern (typically 0-2)."""
         min_calls, max_calls = GAME_LENGTH_RANGE
-        pick_max = max_calls - 3  # leave room for completion calls
         if game_target is None:
-            return random.randint(min_calls, pick_max)
+            return random.randint(min_calls, max_calls)
         try:
             target = int(game_target)
         except (TypeError, ValueError):
-            return random.randint(min_calls, pick_max)
-        return max(min_calls, min(pick_max, target))
+            return random.randint(min_calls, max_calls)
+        return max(min_calls, min(max_calls, target))
 
     def build_player_cartelas(self, players: Dict[str, dict]) -> Dict[str, List[dict]]:
         """Load all cartelas for active players once so predictor and resolver share the same state."""
