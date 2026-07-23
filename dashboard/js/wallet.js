@@ -138,33 +138,30 @@ async function submitWithdrawal() {
     if (!phone) { showToast('Enter phone number'); return; }
     try {
         const apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
-        try {
-            const valRes = await fetch(apiBase + '/api/validate-withdrawal/' + currentUser.id + '?amount=' + amount);
-            const val = await valRes.json();
-            if (!val.ok) {
-                const errorMessages = {
-                    below_min: 'Minimum withdrawal is ' + (val.min || 50) + ' ETB',
-                    insufficient: 'Insufficient balance! Your balance: ' + (val.balance || 0) + ' ETB',
-                    above_max: 'Maximum withdrawal is ' + (val.max || 50000) + ' ETB',
-                    no_phone: 'Please register with your phone number first',
-                    account_new: 'Your account is too new. Wait 24 hours after registration.',
-                    pending_exists: 'You already have a pending withdrawal. Wait for it to be processed.',
-                    daily_limit: 'Daily withdrawal limit reached (' + (val.limit || 3) + '/day). Try again tomorrow.',
-                    cooldown: 'Please wait ' + (val.minutes || 0) + ' minutes before another withdrawal.',
-                };
-                showToast(errorMessages[val.error] || 'Withdrawal not allowed');
-                return;
-            }
-        } catch (e) { console.warn('Validation API failed, proceeding:', e); }
-        const userRef = db.collection('users').doc(String(currentUser.id));
-        const snap = await userRef.get();
-        const bal = (snap.data().play_wallet || 0);
-        if (amount > bal) { showToast('Insufficient balance!'); return; }
-        await userRef.update({
-            play_wallet: bal - amount,
+        const valRes = await fetch(apiBase + '/api/validate-withdrawal/' + currentUser.id + '?amount=' + amount);
+        const val = await valRes.json();
+        if (!val.ok) {
+            const errorMessages = {
+                below_min: 'Minimum withdrawal is ' + (val.min || 50) + ' ETB',
+                insufficient: 'Insufficient balance! Your balance: ' + (val.balance || 0) + ' ETB',
+                above_max: 'Maximum withdrawal is ' + (val.max || 50000) + ' ETB',
+                no_phone: 'Please register with your phone number first',
+                account_new: 'Your account is too new. Wait 24 hours after registration.',
+                pending_exists: 'You already have a pending withdrawal. Wait for it to be processed.',
+                daily_limit: 'Daily withdrawal limit reached (' + (val.limit || 3) + '/day). Try again tomorrow.',
+                cooldown: 'Please wait ' + (val.minutes || 0) + ' minutes before another withdrawal.',
+            };
+            showToast(errorMessages[val.error] || 'Withdrawal not allowed');
+            return;
+        }
+        var batch = db.batch();
+        var userRef = db.collection('users').doc(String(currentUser.id));
+        batch.update(userRef, {
+            play_wallet: firebase.firestore.FieldValue.increment(-amount),
             updated_at: firebase.firestore.FieldValue.serverTimestamp()
         });
-        const withdrawRef = await db.collection('withdrawals').add({
+        var withdrawRef = db.collection('withdrawals').doc();
+        batch.set(withdrawRef, {
             userId: String(currentUser.id),
             firstName: currentUser.first_name,
             username: currentUser.username,
@@ -174,6 +171,7 @@ async function submitWithdrawal() {
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        await batch.commit();
         try {
             await fetch(apiBase + '/api/admin/withdrawals/notify', {
                 method: 'POST',
@@ -197,6 +195,7 @@ async function submitWithdrawal() {
 function showTransferModal() { document.getElementById('transfer-modal').classList.remove('hidden'); }
 function hideTransferModal() { document.getElementById('transfer-modal').classList.add('hidden'); }
 
+var _txnCache = null;
 async function loadWalletTransactions() {
     if (!currentUser) return;
     var container = document.getElementById('transaction-list');
@@ -205,63 +204,50 @@ async function loadWalletTransactions() {
     container.innerHTML = '<div class="glass rounded-xl p-4 text-center"><p class="text-white/30 text-sm">Loading transactions...</p></div>';
     try {
         var uid = String(currentUser.id);
-        var depositsSnap = await db.collection('deposits').where('userId', '==', uid).get();
-        var withdrawalsSnap = await db.collection('withdrawals').where('userId', '==', uid).get();
-        var items = [];
+        var results = await Promise.all([
+            db.collection('deposits').where('userId', '==', uid).get(),
+            db.collection('withdrawals').where('userId', '==', uid).get()
+        ]);
 
-        depositsSnap.forEach(function(doc) {
-            var d = doc.data();
-            items.push({
-                id: doc.id,
-                type: 'deposit',
-                amount: d.amount || 0,
-                status: d.status || 'pending',
-                createdAt: d.createdAt,
-                label: 'Deposit'
-            });
-        });
-
-        withdrawalsSnap.forEach(function(doc) {
-            var d = doc.data();
-            items.push({
-                id: doc.id,
-                type: 'withdraw',
-                amount: d.amount || 0,
-                status: d.status || 'pending',
-                createdAt: d.createdAt,
-                label: 'Withdraw'
-            });
-        });
-
-        items.sort(function(a, b) {
-            function toTime(value) {
-                if (!value) return 0;
-                if (value.toDate) return value.toDate().getTime();
-                if (value._iso) return new Date(value._iso).getTime();
-                return new Date(value).getTime() || 0;
-            }
-            return toTime(b.createdAt) - toTime(a.createdAt);
-        });
-
-        if (!items.length) {
+        if (!results[0].docs.length && !results[1].docs.length) {
             container.innerHTML = '<div class="glass rounded-xl p-4 text-center"><p class="text-white/30 text-sm">No transactions yet</p></div>';
             return;
         }
 
+        var items = [];
+        results[0].forEach(function(doc) {
+            var d = doc.data();
+            items.push({
+                id: doc.id, type: 'deposit', amount: d.amount || 0,
+                status: d.status || 'pending', createdAt: d.createdAt, label: 'Deposit'
+            });
+        });
+        results[1].forEach(function(doc) {
+            var d = doc.data();
+            items.push({
+                id: doc.id, type: 'withdraw', amount: d.amount || 0,
+                status: d.status || 'pending', createdAt: d.createdAt, label: 'Withdraw'
+            });
+        });
+
+        items.sort(function(a, b) {
+            function toTime(v) {
+                if (!v) return 0;
+                if (v.toDate) return v.toDate().getTime();
+                if (v._iso) return new Date(v._iso).getTime();
+                return new Date(v).getTime() || 0;
+            }
+            return toTime(b.createdAt) - toTime(a.createdAt);
+        });
+
         container.innerHTML = items.slice(0, 8).map(function(item) {
             var color = item.type === 'deposit' ? 'text-bingo-green' : 'text-bingo-orange';
             var badge = item.status === 'approved' ? 'text-bingo-green' : (item.status === 'rejected' ? 'text-bingo-red' : 'text-bingo-yellow');
-            return '' +
-                '<div class="glass rounded-xl p-4 flex items-center justify-between gap-3">' +
-                    '<div>' +
-                        '<div class="text-sm font-semibold text-white">' + item.label + '</div>' +
-                        '<div class="text-xs ' + badge + ' uppercase">' + item.status + '</div>' +
-                    '</div>' +
-                    '<div class="text-right">' +
-                        '<div class="text-sm font-bold ' + color + '">' + item.amount + ' ETB</div>' +
-                        '<div class="text-[11px] text-white/35">#' + item.id.slice(0, 6) + '</div>' +
-                    '</div>' +
-                '</div>';
+            return '<div class="glass rounded-xl p-4 flex items-center justify-between gap-3">' +
+                '<div><div class="text-sm font-semibold text-white">' + item.label + '</div>' +
+                '<div class="text-xs ' + badge + ' uppercase">' + item.status + '</div></div>' +
+                '<div class="text-right"><div class="text-sm font-bold ' + color + '">' + item.amount + ' ETB</div>' +
+                '<div class="text-[11px] text-white/35">#' + item.id.slice(0, 6) + '</div></div></div>';
         }).join('');
     } catch (err) {
         container.innerHTML = '<div class="glass rounded-xl p-4 text-center"><p class="text-red-400 text-sm">Could not load transactions</p></div>';
