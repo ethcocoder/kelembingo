@@ -362,8 +362,7 @@ async def _game_loop(round_id: str):
                 chosen_winner = engine.choose_single_winner(winner_entries, players)
                 completion_reason = 'smart_single_winner' if len(winner_entries) == 1 else 'smart_tie_break_single_winner'
             elif len(called_now) >= MAX_SMART_CALLS:
-                chosen_winner = engine.get_closest_contender(player_cartelas, called_now, players)
-                completion_reason = 'forced_single_winner_max_30'
+                completion_reason = 'no_winner_max_30'
 
             if chosen_winner:
                 now = datetime.now(tz=timezone.utc)
@@ -384,12 +383,10 @@ async def _game_loop(round_id: str):
                     'completed_at': now,
                 })
                 await broadcast_event('rounds', round_id)
-                # Process payout with exactly one winner, even if multiple players completed on the same call.
                 try:
                     await engine.end_round(round_id, [int(winner_id)])
                 except Exception as e:
                     logger.error(f"[GameLoop] Error distributing prizes: {e}")
-                # Broadcast user updates so frontend sees balance/wins change
                 for uid in set(list(players.keys()) + [winner_id]):
                     try: await broadcast_event('users', str(uid))
                     except: pass
@@ -400,6 +397,31 @@ async def _game_loop(round_id: str):
                     f"cartela={winning_cartela} calls={len(called_now)} reason={completion_reason} "
                     f"natural_winners={len(winner_entries)}"
                 )
+                return
+
+            if completion_reason == 'no_winner_max_30':
+                now = datetime.now(tz=timezone.utc)
+                logger.info(f"[GameLoop] No real winner for {round_id} after {len(called_now)} calls — ending with no winner")
+                for uid_str in players:
+                    user_ref = db.collection('users').document(uid_str)
+                    user_doc = user_ref.get()
+                    if user_doc.exists:
+                        ud = user_doc.to_dict()
+                        user_ref.update({
+                            'losses': ud.get('losses', 0) + 1,
+                            'is_playing': False,
+                            'updated_at': now,
+                        })
+                db.collection('rounds').document(round_id).update({
+                    'status': 'completed',
+                    'winners': [],
+                    'winner_name': 'No winner',
+                    'prize_per_winner': 0,
+                    'admin_profit': 0,
+                    'payout_processed': True,
+                    'completed_at': now,
+                })
+                await broadcast_event('rounds', round_id)
                 return
 
             await asyncio.sleep(NUMBER_CALL_INTERVAL)

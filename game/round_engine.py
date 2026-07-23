@@ -343,33 +343,56 @@ class RoundEngine:
             ),
         )
 
-    def get_closest_contender(self, player_cartelas: Dict[str, List[dict]], called_numbers: List[int],
-                              players: Dict[str, dict]) -> Optional[dict]:
-        """Pick the closest single contender when the round reaches the hard 30-call cap without a natural winner."""
-        called_set = set(called_numbers)
-        best = None
-        best_key = None
+    def _candidate_progress(self, player_cartelas: Dict[str, List[dict]],
+                             simulated_called: List[int]) -> int:
+        """Return the minimum number of additional calls needed for ANY player
+        to complete a winning pattern with these called numbers.
+        Lower = closer to a real bingo. 0 means a winner already exists."""
+        called_set = set(simulated_called)
+        min_missing = 999
         for uid_str, cartelas in player_cartelas.items():
             for entry in cartelas:
                 for pattern in self.get_cartela_patterns(entry.get('flat', [])):
-                    missing = [num for num in pattern if num not in called_set]
-                    sort_key = (
-                        len(missing),
-                        len(pattern),
-                        *self._winner_sort_key(uid_str, entry.get('cartela_number', 0), players),
-                    )
-                    if best_key is None or sort_key < best_key:
-                        best_key = sort_key
-                        best = {
-                            'user_id': uid_str,
-                            'cartela_number': int(entry.get('cartela_number', 0)),
-                            'missing_numbers': missing,
-                            'pattern_size': len(pattern),
-                        }
-        return best
+                    missing = sum(1 for num in pattern if num not in called_set)
+                    if missing == 0:
+                        return 0
+                    if missing < min_missing:
+                        min_missing = missing
+        return min_missing
+
+    def _pick_target_winner(self, player_cartelas: Dict[str, List[dict]],
+                             called_numbers: List[int],
+                             players: Dict[str, dict]) -> Optional[dict]:
+        """Pick a player/cartela/pattern to become the designated winner.
+        Chooses the pattern closest to completion across all players' cartelas,
+        with randomness among equal-distance contenders."""
+        called_set = set(called_numbers)
+        candidates = []
+        for uid_str, cartelas in player_cartelas.items():
+            for entry in cartelas:
+                flat = entry.get('flat', [])
+                for pattern in self.get_cartela_patterns(flat):
+                    missing = [n for n in pattern if n not in called_set and n != 0]
+                    if not missing:
+                        continue
+                    candidates.append({
+                        'user_id': uid_str,
+                        'cartela_number': entry['cartela_number'],
+                        'pattern': pattern,
+                        'missing': len(missing),
+                    })
+        if not candidates:
+            return None
+        min_missing = min(c['missing'] for c in candidates)
+        tier = [c for c in candidates if c['missing'] == min_missing]
+        return random.choice(tier)
 
     async def call_number(self, round_id: str) -> Optional[int]:
-        """Call the next random number for the round."""
+        """Call the next number for the round.
+        Phase 1 (calls 1-15): random safe numbers, avoid any winner.
+        Phase 2 (calls 16+): pick a target winner and feed their numbers
+        until they complete a winning pattern — guaranteeing a real winner
+        between 15-30 calls."""
         round_doc = self.rounds_ref.document(round_id).get()
         if not round_doc.exists:
             return None
@@ -378,63 +401,76 @@ class RoundEngine:
         if data['status'] != 'playing':
             return None
 
-        called = data.get('called_numbers', [])
+        called = list(data.get('called_numbers', []))
         available = [n for n in BINGO_NUMBERS if n not in called]
         if not available:
             return None
 
-        # ── SMART STATISTIC PREDICTION: HARD-FINISH BETWEEN 15-30 ──
-        # Before target: keep the round alive with zero winners if possible.
-        # Target window: finish with exactly one winner if possible.
-        # Final call (30): choose the smallest positive winner set if possible;
-        # the API loop will still force exactly one paid winner if ties remain.
         num_called = len(called)
         next_call_index = num_called + 1
-        players = data.get('players', {})
+        min_calls, max_calls = GAME_LENGTH_RANGE
         game_target = self.normalize_game_target(data.get('game_target'))
-        max_calls = GAME_LENGTH_RANGE[1]
+        players = data.get('players', {})
         player_cartelas = self.build_player_cartelas(players)
 
         if data.get('game_target') != game_target:
             self.rounds_ref.document(round_id).update({'game_target': game_target})
 
-        random.shuffle(available)
-        best_number = available[0]
-        best_score = None
+        number = available[0]
 
-        for candidate in available:
-            simulated_called = called + [candidate]
-            candidate_winners_count = len(self.evaluate_winners(player_cartelas, simulated_called))
-
-            if next_call_index < game_target:
-                candidate_score = (
-                    0 if candidate_winners_count == 0 else 1,
-                    candidate_winners_count,
-                )
-            elif next_call_index < max_calls:
-                if candidate_winners_count == 1:
-                    best_number = candidate
+        # ── Phase 1 (1-15): random safe, avoid any winner ──
+        if next_call_index <= min_calls:
+            random.shuffle(available)
+            for candidate in available:
+                if len(self.evaluate_winners(player_cartelas, called + [candidate])) == 0:
+                    number = candidate
                     break
-                candidate_score = (
-                    0 if candidate_winners_count == 0 else 1,
-                    candidate_winners_count,
-                )
+        else:
+            # ── Phase 2 (16-30): target one winner and make them win ──
+            existing = self.evaluate_winners(player_cartelas, called)
+            if existing:
+                number = available[0]
             else:
-                if candidate_winners_count == 1:
-                    best_number = candidate
-                    break
-                candidate_score = (
-                    0 if candidate_winners_count > 0 else 1,
-                    candidate_winners_count if candidate_winners_count > 0 else 9999,
-                )
+                target_winner = data.get('target_winner')
+                if not target_winner:
+                    target_winner = self._pick_target_winner(
+                        player_cartelas, called, players,
+                    )
+                    if target_winner:
+                        self.rounds_ref.document(round_id).update({
+                            'target_winner': target_winner,
+                        })
 
-            if best_score is None or candidate_score < best_score:
-                best_score = candidate_score
-                best_number = candidate
+                best_number = available[0]
+                best_score = None
 
-        number = best_number
+                for candidate in available:
+                    simulated = called + [candidate]
+                    wc = len(self.evaluate_winners(player_cartelas, simulated))
+
+                    if wc == 1:
+                        best_number = candidate
+                        break
+
+                    progress = self._candidate_progress(player_cartelas, simulated)
+                    is_target = (
+                        1 if (target_winner
+                              and candidate in target_winner.get('pattern', []))
+                        else 0
+                    )
+
+                    score = (
+                        0 if wc == 0 else 1,
+                        -is_target,
+                        -progress,
+                    )
+                    if best_score is None or score < best_score:
+                        best_score = score
+                        best_number = candidate
+
+                number = best_number
+
         called.append(number)
-
         now = datetime.now(tz=timezone.utc)
         self.rounds_ref.document(round_id).update({
             'called_numbers': called,
@@ -442,7 +478,6 @@ class RoundEngine:
             'last_called_at': now,
             'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
         })
-
         return number
 
     def get_cartela_patterns(self, flat_cartela: List[int]) -> List[List[int]]:
