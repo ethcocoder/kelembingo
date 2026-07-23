@@ -266,15 +266,13 @@ async def _game_loop(round_id: str):
             data = round_doc.to_dict()
 
             if data.get('status') != 'playing':
-                # The frontend completes the round when someone hits Bingo.
-                # If there are winners, distribute the dynamic derash here cleanly.
                 winners = data.get('winners', [])
                 if winners and not data.get('payout_processed'):
                     try:
                         await engine.end_round(round_id, [int(w) for w in winners])
                     except Exception as e:
                         logger.error(f"[GameLoop] Error distributing prizes for {round_id}: {e}")
-                        return  # Don't mark as processed if payout failed
+                        return
                     for uid in winners:
                         try: await broadcast_event('users', str(uid))
                         except: pass
@@ -282,13 +280,23 @@ async def _game_loop(round_id: str):
                     await broadcast_event('rounds', round_id)
                 return
 
+            # Sleep until next_number_at for precise timing
+            next_at = data.get('next_number_at')
+            if next_at:
+                if isinstance(next_at, str):
+                    next_at = datetime.fromisoformat(next_at.replace('Z', '+00:00'))
+                elif isinstance(next_at, datetime):
+                    if next_at.tzinfo is None:
+                        next_at = next_at.replace(tzinfo=timezone.utc)
+                delay = (next_at - datetime.now(tz=timezone.utc)).total_seconds()
+                if delay > 0:
+                    await asyncio.sleep(delay)
+
             already_called = set(data.get('called_numbers', []))
             available = [n for n in BINGO_NUMBERS if n not in already_called]
 
             if not available:
-                # All 75 numbers called, no winner — complete the round
                 player_count = data.get('player_count', 0)
-                # Mark all players as not playing and count as losses
                 for uid_str in data.get('players', {}):
                     user_ref = db.collection('users').document(uid_str)
                     user_doc = user_ref.get()
@@ -299,7 +307,6 @@ async def _game_loop(round_id: str):
                             'is_playing': False,
                             'updated_at': datetime.now(tz=timezone.utc),
                         })
-
                 db.collection('rounds').document(round_id).update({
                     'status': 'completed',
                     'winners': [],
@@ -311,13 +318,12 @@ async def _game_loop(round_id: str):
                 })
                 await broadcast_event('rounds', round_id)
                 return
-            # Always use the smart predictor so the round resolves inside the 15-30 call window
+
             try:
                 number = await engine.call_number(round_id)
                 await broadcast_event('rounds', round_id)
             except Exception as e:
                 logger.warning(f"Smart predictor error for {round_id}: {e}")
-                # Fallback to pure random choice if predictor crashes
                 import random
                 number = random.choice(available)
                 called = list(data.get('called_numbers', []))
@@ -330,18 +336,16 @@ async def _game_loop(round_id: str):
                     'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
                 })
                 await broadcast_event('rounds', round_id)
-                
+
             if number is None:
-                await asyncio.sleep(NUMBER_CALL_INTERVAL)
                 continue
 
-            # ── SERVER-SIDE WINNER CHECK (authoritative) ──
+            # ── SERVER-SIDE WINNER CHECK ──
             round_doc = db.collection('rounds').document(round_id).get()
             if not round_doc.exists:
                 return
             rd_after = round_doc.to_dict()
             if rd_after.get('status') != 'playing':
-                # Client already completed it; handle payout
                 winners = rd_after.get('winners', [])
                 if winners and not rd_after.get('payout_processed'):
                     try:
@@ -392,11 +396,7 @@ async def _game_loop(round_id: str):
                     except: pass
                 db.collection('rounds').document(round_id).update({'payout_processed': True})
                 await broadcast_event('rounds', round_id)
-                logger.info(
-                    f"[GameLoop] ROUND COMPLETE {round_id}: winner={winner_id} "
-                    f"cartela={winning_cartela} calls={len(called_now)} reason={completion_reason} "
-                    f"natural_winners={len(winner_entries)}"
-                )
+                logger.info(f"[GameLoop] ROUND COMPLETE {round_id}: winner={winner_id} cartela={winning_cartela} calls={len(called_now)} reason={completion_reason} natural_winners={len(winner_entries)}")
                 return
 
             if completion_reason == 'no_winner_max_30':
@@ -423,8 +423,6 @@ async def _game_loop(round_id: str):
                 })
                 await broadcast_event('rounds', round_id)
                 return
-
-            await asyncio.sleep(NUMBER_CALL_INTERVAL)
 
     except asyncio.CancelledError:
         pass
