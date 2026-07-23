@@ -4,14 +4,14 @@ var _currentBotCategory = 'welcome';
 
 var BOT_CONTENT_DEFAULTS = {
     welcome: {
-        welcome_registered: { label: 'Welcome (Registered User)', default: '👋 Welcome back, {name}!\n\n💰 Main Wallet: *{balance} ETB*\n🎮 Play Wallet: *{play_wallet} ETB*\n\nTap Play to start the game!', vars: 'name, balance, play_wallet' },
+        welcome_registered: { label: 'Welcome (Registered User)', default: '👋 Welcome back, {name}!\n\n💰 Balance: *{balance} ETB*\n\nTap Play to start the game!', vars: 'name, balance' },
         welcome_new: { label: 'Welcome (New User)', default: '👋 Welcome to Kelem Bingo! Choose an Option below.', vars: '' },
         welcome_new_amharic: { label: 'Welcome Amharic', default: '🎮 ጨዋታውን ለመጀመር ከታች ያለውን Play የሚለውን ይጫኑ::\n(Click Play below to start the game)', vars: '' },
     },
     play: {
         play_wallet_info: { label: 'Play Button Info', default: '💰 Your Play Wallet: *{play_wallet} ETB*\n\n🎯 Stake: *10 ETB* per cartela (max 2)\n🏆 Derash: *(Cartelas × Stake × 0.75) / Winners*\n\nTap below to open the game:', vars: 'play_wallet' },
         play_need_start: { label: 'Need /start', default: 'Please /start first.', vars: '' },
-        instruction: { label: 'How to Play', default: '📖 *How to Play Kelem Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallets:*\n• Main Wallet — deposit here via TeleBirr\n• Play Wallet — transfer from main to play\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into Play Wallet', vars: '' },
+        instruction: { label: 'How to Play', default: '📖 *How to Play Kelem Bingo*\n\n1️⃣ Click *Play* and choose your stake (10 or 20 ETB)\n2️⃣ Select up to *3 cartelas* (bingo cards)\n3️⃣ The game board opens — numbers are called every 4 seconds\n4️⃣ Tap numbers on your card to mark them (or use Auto Mark)\n5️⃣ Complete a full line (row, column, or diagonal) to win!\n\n🎯 *Winning:* Complete any row, column, or diagonal\n🏆 *Derash:* 1.5x your stake\n⭐ *Free Space:* Center cell is always free\n\n💰 *Wallet:*\n• Deposit via TeleBirr — funds go directly to your play wallet\n• Bonus — earned from referrals\n\n📤 *Transfer:* Send funds to any user by ID\n🔄 *Convert Bonus:* Turn bonus coins into your wallet', vars: '' },
     },
     register: {
         register_already: { label: 'Already Registered', default: '✅ You are already registered!\n\nName: {name}\nPhone: {phone}', vars: 'name, phone' },
@@ -82,7 +82,7 @@ var BOT_CONTENT_DEFAULTS = {
         admin_withdrawal_notification: { label: 'Withdrawal Notification (Admin)', default: '🎰 *New Withdrawal Request*\n\n👤 {first_name} (@{username})\n💰 TeleBirr Name: {telebirr_name}\n💵 Amount: {amount} ETB\n📱 Phone: {phone}\n🆔 {withdrawal_id}\n🕐 {timestamp}', vars: 'first_name, username, telebirr_name, amount, phone, withdrawal_id, timestamp' },
     },
     stats: {
-        stats_title: { label: 'Stats Message', default: '📊 *Your Stats*\n\n🎮 Games Played: {total}\n🏆 Wins: {wins}\n❌ Losses: {losses}\n📈 Win Rate: {win_rate}\n\n💳 Main Wallet: {balance} ETB\n🎮 Play Wallet: {play_wallet} ETB\n🪙 Bonus Coins: {bonus}', vars: 'total, wins, losses, win_rate, balance, play_wallet, bonus' },
+        stats_title: { label: 'Stats Message', default: '📊 *Your Stats*\n\n🎮 Games Played: {total}\n🏆 Wins: {wins}\n❌ Losses: {losses}\n📈 Win Rate: {win_rate}\n\n💰 Balance: {balance} ETB\n🪙 Bonus Coins: {bonus}', vars: 'total, wins, losses, win_rate, balance, bonus' },
         leaderboard_no_games: { label: 'No Games (Leaderboard)', default: '🏆 No games played yet. Be the first!', vars: '' },
         leaderboard_title: { label: 'Leaderboard Title', default: '🏆 *Top Players*\n', vars: '' },
         history_no_games: { label: 'No History', default: 'No game history yet. Play a game first!', vars: '' },
@@ -102,7 +102,7 @@ var BOT_CONTENT_DEFAULTS = {
 };
 
 var VAR_SAMPLES = {
-    name: 'Abebe', balance: '500', play_wallet: '200', phone: '+251911234567',
+    name: 'Abebe', balance: '200', phone: '+251911234567',
     amount: '100', telebirr_name: 'Abebe Kebede', transaction_id: 'DFL35JF5',
     deposit_id: 'abc123', withdrawal_id: 'xyz789', timestamp: '20/07/2026 14:30',
     first_name: 'Abebe', username: 'abebe123', min_withdraw: '50', total: '25',

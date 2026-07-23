@@ -31,7 +31,7 @@ function renderUsersTable() {
             var initial = name.charAt(0).toUpperCase();
             var uname = u.username ? '@' + u.username : '-';
             var uid = u.user_id || '-';
-            var balance = (u.balance || 0).toFixed(2);
+            var balance = (u.play_wallet || 0).toFixed(2);
             var games = u.total_games || u.games_played || 0;
             var wins = u.wins || 0;
             var status = u.status || 'active';
@@ -52,7 +52,7 @@ function renderUsersTable() {
                 '<td class="px-4 py-3"><span class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ' + statusClass + '"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>' + status + '</span></td>' +
                 '<td class="px-4 py-3"><div class="flex items-center gap-1">' +
                 '<button onclick="viewUser(\'' + escHtml(docId) + '\')" class="p-1.5 rounded-lg hover:bg-white/5 transition-all" title="View"><span class="text-sm">👁️</span></button>' +
-                '<button onclick="openEditBalance(\'' + escHtml(docId) + '\',\'' + escHtml(name) + '\',' + (u.balance || 0) + ')" class="p-1.5 rounded-lg hover:bg-white/5 transition-all" title="Edit Balance"><span class="text-sm">💰</span></button>' +
+                '<button onclick="openEditBalance(\'' + escHtml(docId) + '\',\'' + escHtml(name) + '\',' + (u.play_wallet || 0) + ')" class="p-1.5 rounded-lg hover:bg-white/5 transition-all" title="Edit Balance"><span class="text-sm">💰</span></button>' +
                 '<button onclick="toggleBanUser(\'' + escHtml(docId) + '\',\'' + escHtml(status) + '\')" class="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Ban/Unban"><span class="text-sm">' + (status === 'banned' ? '✅' : '🚫') + '</span></button>' +
                 '<button onclick="requestDeleteUser(\'' + escHtml(docId) + '\',\'' + escHtml(name) + '\')" class="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Delete"><span class="text-sm">🗑️</span></button>' +
                 '</div></td>' +
@@ -90,7 +90,7 @@ function viewUser(docId) {
         '<div><p class="text-lg font-bold">' + escHtml(name) + '</p><p class="text-sm text-gray-400">@' + escHtml(u.username || 'no_username') + '</p></div>' +
         '</div>' +
         '<div class="grid grid-cols-2 gap-3">' +
-        '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#10B981]">' + (u.balance || 0).toFixed(2) + '</p><p class="text-[10px] text-gray-500">Balance (ETB)</p></div>' +
+        '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#10B981]">' + (u.play_wallet || 0).toFixed(2) + '</p><p class="text-[10px] text-gray-500">Balance (ETB)</p></div>' +
         '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#3B82F6]">' + games + '</p><p class="text-[10px] text-gray-500">Games Played</p></div>' +
         '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#FF8C00]">' + wins + '</p><p class="text-[10px] text-gray-500">Wins</p></div>' +
         '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#8B5CF6]">' + winRate + '%</p><p class="text-[10px] text-gray-500">Win Rate</p></div>' +
@@ -119,7 +119,7 @@ function saveEditBalance() {
         alert('Please enter a valid number');
         return;
     }
-    db.collection('users').doc(editingUserId).update({ balance: newBal })
+    db.collection('users').doc(editingUserId).update({ play_wallet: newBal })
         .then(function () {
             closeModal('editBalanceModal');
             editingUserId = null;
