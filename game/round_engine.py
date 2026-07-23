@@ -27,7 +27,8 @@ MAX_CARTELAS_PER_PLAYER = 2
 BINGO_NUMBERS = range(1, 76)    # 1-75
 GAME_LENGTH_RANGE = (15, 30)    # random target: each round ends between 15-30 numbers
 
-_CARTELA_CACHE = {}  # Global in-memory cache for all 500 cartela structures
+_CARTELA_CACHE = {}   # Global cache: cartela_number -> flat cartela list
+_PATTERN_CACHE = {}    # Global cache: tuple(flat_cartela) -> list of patterns
 
 class RoundEngine:
     def __init__(self, db):
@@ -289,7 +290,7 @@ class RoundEngine:
         return max(min_calls, min(max_calls, target))
 
     def build_player_cartelas(self, players: Dict[str, dict]) -> Dict[str, List[dict]]:
-        """Load all cartelas for active players once so predictor and resolver share the same state."""
+        """Load all cartelas + cached patterns for active players."""
         if not _CARTELA_CACHE:
             try:
                 docs = self.master_ref.get()
@@ -310,18 +311,34 @@ class RoundEngine:
                         continue
                     flat = cdoc.to_dict().get('cartela', [])
                     _CARTELA_CACHE[ctype] = flat
+                patterns = self.get_cartela_patterns(flat)
                 player_cartelas[uid_str].append({
                     'cartela_number': int(cnum),
                     'flat': flat,
+                    'patterns': patterns,
                 })
         return player_cartelas
 
-    def evaluate_winners(self, player_cartelas: Dict[str, List[dict]], called_numbers: List[int]) -> List[dict]:
-        """Return unique player winners and the first winning cartela for each player."""
+    def _entry_patterns(self, entry: dict) -> List[List[int]]:
+        patterns = entry.get('patterns')
+        if patterns is None:
+            patterns = self.get_cartela_patterns(entry.get('flat', []))
+            entry['patterns'] = patterns
+        return patterns
+
+    def _has_winner(self, patterns: List[List[int]], called_set: set) -> bool:
+        for pattern in patterns:
+            if all(n in called_set for n in pattern):
+                return True
+        return False
+
+    def evaluate_winners(self, player_cartelas: Dict[str, List[dict]],
+                          called_numbers: List[int]) -> List[dict]:
+        called_set = set(called_numbers)
         winners = []
         for uid_str, cartelas in player_cartelas.items():
             for entry in cartelas:
-                if self.check_bingo_for_cartela(entry.get('flat', []), called_numbers):
+                if self._has_winner(self._entry_patterns(entry), called_set):
                     winners.append({
                         'user_id': uid_str,
                         'cartela_number': int(entry.get('cartela_number', 0)),
@@ -355,8 +372,13 @@ class RoundEngine:
         min_missing = 999
         for uid_str, cartelas in player_cartelas.items():
             for entry in cartelas:
-                for pattern in self.get_cartela_patterns(entry.get('flat', [])):
-                    missing = sum(1 for num in pattern if num not in called_set)
+                for pattern in self._entry_patterns(entry):
+                    missing = 0
+                    for n in pattern:
+                        if n not in called_set:
+                            missing += 1
+                            if missing >= min_missing:
+                                break
                     if missing == 0:
                         return 0
                     if missing < min_missing:
@@ -366,16 +388,13 @@ class RoundEngine:
     def _pick_target_winner(self, player_cartelas: Dict[str, List[dict]],
                              called_numbers: List[int],
                              players: Dict[str, dict]) -> Optional[dict]:
-        """Pick a player/cartela/pattern to become the designated winner.
-        Chooses the pattern closest to completion across all players' cartelas,
-        with randomness among equal-distance contenders."""
+        """Pick a player/cartela/pattern closest to completion."""
         called_set = set(called_numbers)
         candidates = []
         for uid_str, cartelas in player_cartelas.items():
             for entry in cartelas:
-                flat = entry.get('flat', [])
-                for pattern in self.get_cartela_patterns(flat):
-                    missing = [n for n in pattern if n not in called_set and n != 0]
+                for pattern in self._entry_patterns(entry):
+                    missing = [n for n in pattern if n not in called_set]
                     if not missing:
                         continue
                     candidates.append({
@@ -393,9 +412,7 @@ class RoundEngine:
     async def call_number(self, round_id: str) -> Optional[int]:
         """Call the next number for the round.
         Phase 1 (calls 1-15): random safe numbers, avoid any winner.
-        Phase 2 (calls 16+): pick a target winner and feed their numbers
-        until they complete a winning pattern — guaranteeing a real winner
-        between 15-30 calls."""
+        Phase 2 (calls 16+): target a winner and complete their pattern."""
         round_doc = self.rounds_ref.document(round_id).get()
         if not round_doc.exists:
             return None
@@ -405,13 +422,12 @@ class RoundEngine:
             return None
 
         called = list(data.get('called_numbers', []))
-        available = [n for n in BINGO_NUMBERS if n not in called]
+        called_set = set(called)
+        available = [n for n in BINGO_NUMBERS if n not in called_set]
         if not available:
             return None
 
-        num_called = len(called)
-        next_call_index = num_called + 1
-        min_calls, max_calls = GAME_LENGTH_RANGE
+        next_call_index = len(called) + 1
         game_target = self.normalize_game_target(data.get('game_target'))
         players = data.get('players', {})
         player_cartelas = self.build_player_cartelas(players)
@@ -421,15 +437,24 @@ class RoundEngine:
 
         number = available[0]
 
-        # ── Phase 1 (1 to game_target-1): random safe, avoid any winner ──
+        # ── Phase 1: random safe, avoid winner ──
         if next_call_index < game_target:
             random.shuffle(available)
             for candidate in available:
-                if len(self.evaluate_winners(player_cartelas, called + [candidate])) == 0:
+                sim_set = set(called + [candidate])
+                safe = True
+                for uid_str, cartelas in player_cartelas.items():
+                    if not safe:
+                        break
+                    for entry in cartelas:
+                        if self._has_winner(self._entry_patterns(entry), sim_set):
+                            safe = False
+                            break
+                if safe:
                     number = candidate
                     break
         else:
-            # ── Phase 2 (16-30): target one winner and make them win ──
+            # ── Phase 2: target winner ──
             existing = self.evaluate_winners(player_cartelas, called)
             if existing:
                 number = available[0]
@@ -444,24 +469,41 @@ class RoundEngine:
                             'target_winner': target_winner,
                         })
 
-                # Fast path: only try target pattern's missing numbers
+                # Only check target pattern numbers
                 picked = None
-                target_numbers = [n for n in (target_winner.get('pattern', []) if target_winner else [])
-                                 if n in available]
-                for candidate in target_numbers:
-                    wc = len(self.evaluate_winners(player_cartelas, called + [candidate]))
-                    if wc == 1:
-                        picked = candidate
-                        break
-                    if wc == 0 and picked is None:
-                        picked = candidate
+                for n in (target_winner.get('pattern', []) if target_winner else []):
+                    if n not in called_set:
+                        sim_set = called_set | {n}
+                        wc = 0
+                        for uid_str, cartelas in player_cartelas.items():
+                            for entry in cartelas:
+                                if self._has_winner(self._entry_patterns(entry), sim_set):
+                                    wc += 1
+                                    if wc > 1:
+                                        break
+                            if wc > 1:
+                                break
+                        if wc == 1:
+                            picked = n
+                            break
+                        if wc == 0 and picked is None:
+                            picked = n
 
                 if picked is not None:
                     number = picked
                 else:
                     random.shuffle(available)
                     for candidate in available:
-                        if len(self.evaluate_winners(player_cartelas, called + [candidate])) == 0:
+                        sim_set = called_set | {candidate}
+                        safe = True
+                        for uid_str, cartelas in player_cartelas.items():
+                            if not safe:
+                                break
+                            for entry in cartelas:
+                                if self._has_winner(self._entry_patterns(entry), sim_set):
+                                    safe = False
+                                    break
+                        if safe:
                             number = candidate
                             break
 
@@ -476,53 +518,29 @@ class RoundEngine:
         return number
 
     def get_cartela_patterns(self, flat_cartela: List[int]) -> List[List[int]]:
-        """Return all winning patterns for a cartela as flat number lists."""
-        grid = []
-        for row in range(5):
-            grid.append(flat_cartela[row * 5:(row + 1) * 5])
-
+        """Return all winning patterns for a cartela, cached globally."""
+        key = tuple(flat_cartela)
+        cached = _PATTERN_CACHE.get(key)
+        if cached is not None:
+            return cached
+        grid = [flat_cartela[i * 5:(i + 1) * 5] for i in range(5)]
         patterns = []
-        patterns.extend([[num for num in row if num != 0] for row in grid])
+        patterns.extend([[n for n in row if n != 0] for row in grid])
         for col in range(5):
             patterns.append([grid[row][col] for row in range(5) if grid[row][col] != 0])
         patterns.append([grid[i][i] for i in range(5) if grid[i][i] != 0])
         patterns.append([grid[i][4 - i] for i in range(5) if grid[i][4 - i] != 0])
         patterns.append([flat_cartela[0], flat_cartela[4], flat_cartela[20], flat_cartela[24]])
+        _PATTERN_CACHE[key] = patterns
         return patterns
 
-    def check_bingo_for_cartela(self, flat_cartela: List[int], 
+    def check_bingo_for_cartela(self, flat_cartela: List[int],
                                  called_numbers: List[int]) -> bool:
-        """Check if a flat 25-int cartela has bingo given called numbers."""
+        """Check bingo using cached patterns (no grid rebuild)."""
         called_set = set(called_numbers)
-        # Reconstruct 5×5 grid
-        grid = []
-        for row in range(5):
-            grid.append(flat_cartela[row * 5:(row + 1) * 5])
-
-        def is_marked(num):
-            return num == 0 or num in called_set
-
-        # Check rows
-        for row in grid:
-            if all(is_marked(n) for n in row):
+        for pattern in self.get_cartela_patterns(flat_cartela):
+            if all(n in called_set for n in pattern):
                 return True
-
-        # Check columns
-        for col in range(5):
-            if all(is_marked(grid[row][col]) for row in range(5)):
-                return True
-
-        # Check diagonals
-        if all(is_marked(grid[i][i]) for i in range(5)):
-            return True
-        if all(is_marked(grid[i][4 - i]) for i in range(5)):
-            return True
-
-        # Check 4 corners (free space does NOT count for corners)
-        corners = [flat_cartela[0], flat_cartela[4], flat_cartela[20], flat_cartela[24]]
-        if all(c != 0 and c in called_set for c in corners):
-            return True
-
         return False
 
     async def check_bingo(self, round_id: str, user_id: int) -> dict:
