@@ -1,13 +1,13 @@
 """
-Bingo Detection Test Suite — only true winners pass.
-Tests all 4 patterns: rows, columns, diagonals, 4 corners.
-Also verifies edge cases and false-positive rejection.
+Bingo Detection + Full Round Simulation Test Suite.
+Tests all patterns, Phase 1 safety, Phase 2 winner guarantee,
+and runs 500+ Monte Carlo rounds with 2-20 players.
 """
-import sys, os, unittest
+import sys, os, random, time, unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from unittest.mock import Mock
-from game.round_engine import RoundEngine
+from unittest.mock import Mock, MagicMock
+from game.round_engine import RoundEngine, BINGO_NUMBERS, GAME_LENGTH_RANGE
 
 
 def make_cartela(rows):
@@ -26,6 +26,153 @@ SAMPLE_ROWS = [
 ]
 SAMPLE_CARTELA = make_cartela(SAMPLE_ROWS)
 
+
+def _generate_cartela(seed):
+    """Generate a random valid bingo cartela (same format as RoundEngine)."""
+    rng = random.Random(seed)
+    cols = {
+        'B': rng.sample(range(1, 16), 5),
+        'I': rng.sample(range(16, 31), 5),
+        'N': rng.sample(range(31, 46), 5),
+        'G': rng.sample(range(46, 61), 5),
+        'O': rng.sample(range(61, 76), 5),
+    }
+    flat = []
+    for row_idx in range(5):
+        flat.append(cols['B'][row_idx])
+        flat.append(cols['I'][row_idx])
+        flat.append(0 if row_idx == 2 else cols['N'][row_idx])
+        flat.append(cols['G'][row_idx])
+        flat.append(cols['O'][row_idx])
+    return flat
+
+CARTELA_POOL = [_generate_cartela(s) for s in range(500)]  # 500 unique cartelas
+
+
+def simulate_full_round(engine, num_players, player_cartelas_list, game_target=None):
+    """Run a complete simulated round.
+    Returns: { 'winner_found': bool, 'calls_to_win': int, 'game_target': int,
+               'phase1_fail': bool, 'phase2_success': bool, 'winner_is_real': bool }
+    """
+    if game_target is None:
+        game_target = random.randint(*GAME_LENGTH_RANGE)
+
+    # Build player_cartelas dict
+    pc = {}
+    for i, cartelas in enumerate(player_cartelas_list):
+        uid = f'user_{i}'
+        entries = []
+        for j, flat in enumerate(cartelas):
+            patterns = engine.get_cartela_patterns(flat)
+            entries.append({
+                'cartela_number': j + 1,
+                'flat': flat,
+                'patterns': patterns,
+            })
+        pc[uid] = entries
+
+    called = []
+    called_set = set()
+    phase1_violation = False
+    winner_info = None
+    final_call_count = 0
+
+    # Pick predetermined winner at round start (same as engine)
+    target_winner = engine._select_predetermined_winner(pc)
+    winning_pattern = set(target_winner['pattern']) if target_winner else set()
+
+    max_calls = 30
+    for call_idx in range(1, max_calls + 1):
+        available = [n for n in BINGO_NUMBERS if n not in called_set]
+        if not available:
+            break
+
+        # --- Simulate call_number logic ---
+        if call_idx < game_target:
+            # Phase 1: safe, prefer winner's pattern numbers
+            random.shuffle(available)
+            chosen = None
+
+            if target_winner and len(winning_pattern - called_set) > 1:
+                for candidate in available:
+                    if candidate in winning_pattern:
+                        sim_set = called_set | {candidate}
+                        safe = True
+                        for uid, entries in pc.items():
+                            if not safe:
+                                break
+                            for entry in entries:
+                                if engine._has_winner(engine._entry_patterns(entry), sim_set):
+                                    safe = False
+                                    break
+                        if safe:
+                            chosen = candidate
+                            break
+
+            if chosen is None:
+                for candidate in available:
+                    sim_set = called_set | {candidate}
+                    safe = True
+                    for uid, entries in pc.items():
+                        if not safe:
+                            break
+                        for entry in entries:
+                            if engine._has_winner(engine._entry_patterns(entry), sim_set):
+                                safe = False
+                                break
+                    if safe:
+                        chosen = candidate
+                        break
+
+            if chosen is None:
+                chosen = random.choice(available)
+                phase1_violation = True
+        else:
+            # Phase 2: call winner's remaining pattern numbers
+            picked = None
+            if target_winner:
+                for n in target_winner.get('pattern', []):
+                    if n not in called_set:
+                        picked = n
+                        break
+            if picked is not None:
+                chosen = picked
+            else:
+                random.shuffle(available)
+                chosen = available[0]
+
+        called.append(chosen)
+        called_set.add(chosen)
+
+        # Check for winners
+        winners = engine.evaluate_winners(pc, called)
+        if winners:
+            # Verify the winner is real
+            chosen_entry = engine.choose_single_winner(winners, {w['user_id']: {} for w in winners})
+            winner_info = {
+                'call_count': call_idx,
+                'winner': chosen_entry,
+                'winners_count': len(winners),
+                'all_winning_ids': [w['user_id'] for w in winners],
+            }
+            final_call_count = call_idx
+            break
+
+    return {
+        'winner_found': winner_info is not None,
+        'winner_info': winner_info,
+        'calls_to_win': final_call_count,
+        'game_target': game_target,
+        'total_calls': len(called),
+        'phase1_violation': phase1_violation,
+        'phase2_success': winner_info is not None and final_call_count >= game_target,
+        'had_premature_winner': phase1_violation,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# Unit Tests (existing, preserved)
+# ─────────────────────────────────────────────────────────────
 
 class TestBingoDetection(unittest.TestCase):
 
@@ -260,6 +407,297 @@ class TestChooseSingleWinner(unittest.TestCase):
 
     def test_none_for_no_winners(self):
         self.assertIsNone(self.engine.choose_single_winner([], {}))
+
+
+# ─────────────────────────────────────────────────────────────
+# Integration: Full Round Monte Carlo Simulations
+# ─────────────────────────────────────────────────────────────
+
+class TestMonteCarloRounds(unittest.TestCase):
+    """Run 500+ simulated rounds with 2-20 random players."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = RoundEngine(Mock())
+        cls.results = []
+
+    @classmethod
+    def tearDownClass(cls):
+        # Print summary
+        if not cls.results:
+            return
+        total = len(cls.results)
+        won = sum(1 for r in cls.results if r['winner_found'])
+        phase1_fails = sum(1 for r in cls.results if r['phase1_violation'])
+        avg_calls = sum(r['calls_to_win'] for r in cls.results if r['winner_found']) / max(won, 1)
+        print(f"\n{'='*60}")
+        print(f"Monte Carlo: {total} rounds, {won} winners ({100*won/total:.1f}%)")
+        print(f"Phase 1 violations (premature winner): {phase1_fails}")
+        if won:
+            print(f"Average calls to win: {avg_calls:.1f}")
+            call_dist = {}
+            for r in cls.results:
+                if r['winner_found']:
+                    c = r['calls_to_win']
+                    call_dist[c] = call_dist.get(c, 0) + 1
+            dist_str = ', '.join(f'{k}:{v}' for k, v in sorted(call_dist.items()))
+            print(f"Call distribution: {dist_str}")
+
+    def _make_players(self, count):
+        """Create `count` players each with 1-2 random cartelas."""
+        player_cartelas_list = []
+        for _ in range(count):
+            num_cartelas = random.randint(1, 2)
+            chosen = random.sample(CARTELA_POOL, num_cartelas)
+            player_cartelas_list.append(chosen)
+        return player_cartelas_list
+
+    def test_500_monte_carlo_rounds(self):
+        """500 rounds, 2-20 players each, verify Phase 1 safety + Phase 2 win.
+        Accepts rare draws (high game_target may exhaust Phase 2 calls)."""
+        random.seed(42)
+        wins = 0
+        total = 500
+        for _ in range(total):
+            num_players = random.randint(2, 20)
+            players = self._make_players(num_players)
+            result = simulate_full_round(self.engine, num_players, players)
+            self.__class__.results.append(result)
+
+            # Phase 1: NEVER produce a premature winner — critical invariant
+            self.assertFalse(
+                result['phase1_violation'],
+                f"Phase 1 violation! Game target {result['game_target']}, winner at call {result['calls_to_win']}"
+            )
+            if result['winner_found']:
+                wins += 1
+                # Winner must be between game_target and 30
+                self.assertGreaterEqual(
+                    result['calls_to_win'], result['game_target'],
+                    f"Winner too early at call {result['calls_to_win']} < target {result['game_target']}"
+                )
+                self.assertLessEqual(
+                    result['calls_to_win'], 30,
+                    f"Winner too late at call {result['calls_to_win']} > 30"
+                )
+        # Predetermined winner guarantees 100% win rate
+        self.assertEqual(wins, total,
+            f"Only {wins}/{total} rounds found a winner ({100*wins/total:.1f}%)")
+
+    def test_game_target_ranges(self):
+        """Verify winners across all game_target values 15-30."""
+        random.seed(123)
+        for target in range(15, 31):
+            wins = 0
+            trials = 20
+            for _ in range(trials):
+                num_players = random.randint(3, 15)
+                players = self._make_players(num_players)
+                result = simulate_full_round(self.engine, num_players, players, game_target=target)
+                self.__class__.results.append(result)
+                self.assertFalse(result['phase1_violation'],
+                    f"Phase 1 violation at target={target}, winner at call {result['calls_to_win']}")
+                self.assertTrue(result['winner_found'],
+                    f"No winner at target={target}, players={num_players}")
+                self.assertGreaterEqual(result['calls_to_win'], target,
+                    f"Winner at {result['calls_to_win']} < target {target}")
+
+    def test_2_player_rounds(self):
+        """Minimal 2-player rounds."""
+        random.seed(7)
+        wins = 0
+        total = 50
+        for _ in range(total):
+            players = self._make_players(2)
+            result = simulate_full_round(self.engine, 2, players)
+            self.__class__.results.append(result)
+            self.assertFalse(result['phase1_violation'])
+            self.assertTrue(result['winner_found'], "2-player round no winner")
+            self.assertGreaterEqual(result['calls_to_win'], result['game_target'])
+
+    def test_20_player_rounds(self):
+        """Max 20-player rounds with 2 cartelas each."""
+        random.seed(99)
+        wins = 0
+        total = 30
+        for _ in range(total):
+            players = self._make_players(20)
+            result = simulate_full_round(self.engine, 20, players)
+            self.__class__.results.append(result)
+            self.assertFalse(result['phase1_violation'])
+            self.assertTrue(result['winner_found'], "20-player round no winner")
+            self.assertGreaterEqual(result['calls_to_win'], result['game_target'])
+
+    def test_all_cartelas_unique_patterns(self):
+        """Verify every cartela in the pool can produce winners for all pattern types."""
+        engine = self.engine
+        for idx, flat in enumerate(CARTELA_POOL):
+            patterns = engine.get_cartela_patterns(flat)
+            # Each cartela should have at least one row, col, and diagonal
+            row_pats = [p for p in patterns if len(p) >= 4]
+            col_pats = [p for p in patterns if len(p) >= 4]
+            diag_pats = [p for p in patterns if len(p) in (4, 5)]
+            self.assertGreaterEqual(len(patterns), 12, f"Cartela {idx} has < 12 patterns")
+
+            # Must be able to win with each pattern type
+            for pat in patterns:
+                if not pat:
+                    continue
+                self.assertTrue(engine.check_bingo_for_cartela(flat, pat),
+                    f"Cartela {idx} pattern {pat} should be a winner when all called")
+
+    def test_phase1_never_produces_winner(self):
+        """Extra paranoid: run Phase 1 logic many times and verify no winners."""
+        engine = self.engine
+        random.seed(111)
+        for _ in range(200):
+            num_players = random.randint(2, 15)
+            players = self._make_players(num_players)
+            pc = {}
+            for i, cartelas in enumerate(players):
+                uid = f'user_{i}'
+                entries = []
+                for j, flat in enumerate(cartelas):
+                    entries.append({
+                        'cartela_number': j + 1,
+                        'flat': flat,
+                        'patterns': engine.get_cartela_patterns(flat),
+                    })
+                pc[uid] = entries
+
+            called = []
+            called_set = set()
+            game_target = random.randint(*GAME_LENGTH_RANGE)
+            for call_idx in range(1, game_target):
+                available = [n for n in BINGO_NUMBERS if n not in called_set]
+                random.shuffle(available)
+                chosen = None
+                for candidate in available:
+                    sim_set = called_set | {candidate}
+                    safe = True
+                    for uid, entries in pc.items():
+                        if not safe:
+                            break
+                        for entry in entries:
+                            if engine._has_winner(entry['patterns'], sim_set):
+                                safe = False
+                                break
+                    if safe:
+                        chosen = candidate
+                        break
+                if chosen is None:
+                    self.fail(f"Phase 1: no safe number at call {call_idx}, target {game_target}")
+                called.append(chosen)
+                called_set.add(chosen)
+                winners = engine.evaluate_winners(pc, called)
+                self.assertEqual(len(winners), 0,
+                    f"Phase 1 violation at call {call_idx} < target {game_target}")
+
+    def test_no_false_positive_winners(self):
+        """Verify random number combinations never falsely report bingo."""
+        engine = self.engine
+        random.seed(777)
+        for _ in range(500):
+            flat = random.choice(CARTELA_POOL)
+            # Pick random non-winning numbers
+            all_nums = set(n for n in BINGO_NUMBERS)
+            patterns = engine.get_cartela_patterns(flat)
+            # Pick numbers NOT forming any complete pattern
+            for _ in range(10):
+                nums = set(random.sample(list(all_nums), random.randint(1, 8)))
+                # Check none of our numbers complete a pattern
+                has_bingo = engine.check_bingo_for_cartela(flat, list(nums))
+                # Verify by manual pattern check
+                real_bingo = any(all(n in nums for n in p) for p in patterns if len(p) <= len(nums))
+                self.assertEqual(has_bingo, real_bingo,
+                    f"check_bingo_for_cartela mismatch for nums={nums}")
+
+
+class TestPerformance(unittest.TestCase):
+    """Benchmark call_number speed under load."""
+
+    def test_call_number_speed(self):
+        """Verify call_number() logic is fast under many players."""
+        engine = RoundEngine(Mock())
+        # Build 20 players, 2 cartelas each
+        pc = {}
+        for i in range(20):
+            uid = f'user_{i}'
+            entries = []
+            for j in range(2):
+                flat = random.choice(CARTELA_POOL)
+                entries.append({
+                    'cartela_number': j + 1,
+                    'flat': flat,
+                    'patterns': engine.get_cartela_patterns(flat),
+                })
+            pc[uid] = entries
+
+        # Simulate 30 calls, measure total time
+        called = []
+        called_set = set()
+        game_target = random.randint(15, 20)
+        target_winner = engine._select_predetermined_winner(pc)
+        winning_pattern = set(target_winner['pattern']) if target_winner else set()
+        start = time.perf_counter()
+        for call_idx in range(1, 31):
+            available = [n for n in BINGO_NUMBERS if n not in called_set]
+            if not available:
+                break
+            if call_idx < game_target:
+                random.shuffle(available)
+                chosen = None
+                if target_winner and len(winning_pattern - called_set) > 1:
+                    for candidate in available:
+                        if candidate in winning_pattern:
+                            sim_set = called_set | {candidate}
+                            safe = True
+                            for uid, entries in pc.items():
+                                if not safe:
+                                    break
+                                for entry in entries:
+                                    if engine._has_winner(engine._entry_patterns(entry), sim_set):
+                                        safe = False
+                                        break
+                            if safe:
+                                chosen = candidate
+                                break
+                if chosen is None:
+                    for candidate in available:
+                        sim_set = called_set | {candidate}
+                        safe = True
+                        for uid, entries in pc.items():
+                            if not safe:
+                                break
+                            for entry in entries:
+                                if engine._has_winner(engine._entry_patterns(entry), sim_set):
+                                    safe = False
+                                    break
+                        if safe:
+                            chosen = candidate
+                            break
+                if chosen is None:
+                    chosen = available[0]
+            else:
+                target_winner = engine._select_predetermined_winner(pc)
+                picked = None
+                if target_winner:
+                    for n in target_winner.get('pattern', []):
+                        if n not in called_set:
+                            picked = n
+                            break
+                if picked is not None:
+                    chosen = picked
+                else:
+                    random.shuffle(available)
+                    chosen = available[0]
+            called.append(chosen)
+            called_set.add(chosen)
+        elapsed = time.perf_counter() - start
+        # 30 calls with 20 players × 2 cartelas must complete in < 3 seconds
+        self.assertLess(elapsed, 3.0,
+            f"30 calls with 20 players took {elapsed:.2f}s (threshold: 3s)")
+        print(f"\n[Perf] 30 calls, 20 players × 2 cartelas: {elapsed:.3f}s ({elapsed/30*1000:.1f}ms/call)")
 
 
 if __name__ == '__main__':

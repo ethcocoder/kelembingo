@@ -385,6 +385,23 @@ class RoundEngine:
                         min_missing = missing
         return min_missing
 
+    def _select_predetermined_winner(self, player_cartelas: Dict[str, List[dict]]) -> Optional[dict]:
+        """Pick a random player and a random winning pattern from their cartela.
+        This guarantees a winner exists — the engine just calls their remaining numbers in Phase 2."""
+        if not player_cartelas:
+            return None
+        user_ids = list(player_cartelas.keys())
+        winner_uid = random.choice(user_ids)
+        entries = player_cartelas[winner_uid]
+        entry = random.choice(entries)
+        patterns = self._entry_patterns(entry)
+        pattern = random.choice(patterns)
+        return {
+            'user_id': winner_uid,
+            'cartela_number': entry['cartela_number'],
+            'pattern': pattern,
+        }
+
     def _pick_target_winner(self, player_cartelas: Dict[str, List[dict]],
                              called_numbers: List[int],
                              players: Dict[str, dict]) -> Optional[dict]:
@@ -437,63 +454,26 @@ class RoundEngine:
 
         number = available[0]
 
-        # ── Phase 1: random safe, avoid winner ──
+        # Ensure predetermined winner exists (pick at round start, persist in DB)
+        target_winner = data.get('target_winner')
+        if not target_winner:
+            target_winner = self._select_predetermined_winner(player_cartelas)
+            if target_winner:
+                self.rounds_ref.document(round_id).update({
+                    'target_winner': target_winner,
+                })
+
+        winning_pattern = set(target_winner.get('pattern', [])) if target_winner else set()
+
+        # ── Phase 1: safe, avoid winner, prefer winner's pattern numbers ──
         if next_call_index < game_target:
             random.shuffle(available)
-            for candidate in available:
-                sim_set = set(called + [candidate])
-                safe = True
-                for uid_str, cartelas in player_cartelas.items():
-                    if not safe:
-                        break
-                    for entry in cartelas:
-                        if self._has_winner(self._entry_patterns(entry), sim_set):
-                            safe = False
-                            break
-                if safe:
-                    number = candidate
-                    break
-        else:
-            # ── Phase 2: target winner ──
-            existing = self.evaluate_winners(player_cartelas, called)
-            if existing:
-                number = available[0]
-            else:
-                target_winner = data.get('target_winner')
-                if not target_winner:
-                    target_winner = self._pick_target_winner(
-                        player_cartelas, called, players,
-                    )
-                    if target_winner:
-                        self.rounds_ref.document(round_id).update({
-                            'target_winner': target_winner,
-                        })
+            chosen = None
 
-                # Only check target pattern numbers
-                picked = None
-                for n in (target_winner.get('pattern', []) if target_winner else []):
-                    if n not in called_set:
-                        sim_set = called_set | {n}
-                        wc = 0
-                        for uid_str, cartelas in player_cartelas.items():
-                            for entry in cartelas:
-                                if self._has_winner(self._entry_patterns(entry), sim_set):
-                                    wc += 1
-                                    if wc > 1:
-                                        break
-                            if wc > 1:
-                                break
-                        if wc == 1:
-                            picked = n
-                            break
-                        if wc == 0 and picked is None:
-                            picked = n
-
-                if picked is not None:
-                    number = picked
-                else:
-                    random.shuffle(available)
-                    for candidate in available:
+            # Prefer winner's pattern numbers, but leave at least 1 for Phase 2
+            if target_winner and len(winning_pattern - called_set) > 1:
+                for candidate in available:
+                    if candidate in winning_pattern:
                         sim_set = called_set | {candidate}
                         safe = True
                         for uid_str, cartelas in player_cartelas.items():
@@ -504,8 +484,51 @@ class RoundEngine:
                                     safe = False
                                     break
                         if safe:
-                            number = candidate
+                            chosen = candidate
                             break
+
+            if chosen is None:
+                for candidate in available:
+                    sim_set = called_set | {candidate}
+                    safe = True
+                    for uid_str, cartelas in player_cartelas.items():
+                        if not safe:
+                            break
+                        for entry in cartelas:
+                            if self._has_winner(self._entry_patterns(entry), sim_set):
+                                safe = False
+                                break
+                    if safe:
+                        chosen = candidate
+                        break
+
+            number = chosen if chosen else available[0]
+
+        else:
+            # ── Phase 2: call winner's remaining numbers ──
+            picked = None
+            for n in (target_winner.get('pattern', []) if target_winner else []):
+                if n not in called_set:
+                    picked = n
+                    break
+
+            if picked is not None:
+                number = picked
+            else:
+                random.shuffle(available)
+                for candidate in available:
+                    sim_set = called_set | {candidate}
+                    safe = True
+                    for uid_str, cartelas in player_cartelas.items():
+                        if not safe:
+                            break
+                        for entry in cartelas:
+                            if self._has_winner(self._entry_patterns(entry), sim_set):
+                                safe = False
+                                break
+                    if safe:
+                        number = candidate
+                        break
 
         called.append(number)
         now = datetime.now(tz=timezone.utc)
