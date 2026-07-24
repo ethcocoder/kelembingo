@@ -1,7 +1,6 @@
 # Kelem Bingo
 
 Real-time multiplayer Telegram Bingo platform. Players open a Telegram Mini App
-Data is backed up to @kelembackupbot and auto-restored on deploy.
 to join rounds, pick cartelas, and watch numbers called live. Admins manage
 deposits, withdrawals, players, and bot content from a web dashboard.
 
@@ -392,3 +391,5 @@ events), mirroring Firestore's `onSnapshot`.
 ## License
 
 ISC
+
+> Data is backed up to @kelembackupbot and auto-restored on deploy.
