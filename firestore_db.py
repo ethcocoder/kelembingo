@@ -440,7 +440,11 @@ class DocumentRef:
                     target = target[part]
 
                 last_part = parts[-1]
-                if isinstance(v, Increment):
+                # Convert serialized FieldValue objects from frontend JSON
+                if isinstance(v, dict) and v.get('__type') == 'increment':
+                    inc = Increment(v.get('value', 0))
+                    target[last_part] = target.get(last_part, 0) + inc.value
+                elif isinstance(v, Increment):
                     target[last_part] = target.get(last_part, 0) + v.value
                 elif isinstance(v, ArrayUnion):
                     lst = target.get(last_part, [])
@@ -455,6 +459,8 @@ class DocumentRef:
                     if not isinstance(lst, list):
                         lst = []
                     target[last_part] = [x for x in lst if x not in v.values]
+                elif isinstance(v, dict) and v.get('__type') == 'serverTimestamp':
+                    target[last_part] = datetime.now(tz=timezone.utc).isoformat()
                 else:
                     target[last_part] = self._serialize_val(v)
             
@@ -511,7 +517,15 @@ class DocumentRef:
                 sess.close()
 
     def _clean_data_dict(self, data):
-        return {k: self._serialize_val(v) for k, v in data.items()}
+        cleaned = {}
+        for k, v in data.items():
+            if isinstance(v, dict) and v.get('__type') == 'serverTimestamp':
+                cleaned[k] = datetime.now(tz=timezone.utc).isoformat()
+            elif isinstance(v, dict) and v.get('__type') == 'increment':
+                cleaned[k] = v.get('value', 0)
+            else:
+                cleaned[k] = self._serialize_val(v)
+        return cleaned
 
     def _serialize_val(self, val):
         if isinstance(val, (datetime.datetime, datetime.date)):

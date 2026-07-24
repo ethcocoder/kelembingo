@@ -4,6 +4,7 @@ function setupGameBoard() {
     const nums = Object.keys(myCartelas).map(Number);
     calledNumbers = new Set();
     _bingoDetected = false;
+    _autoMarkGrids = null;
     stopGameCountdown();
 
     var el;
