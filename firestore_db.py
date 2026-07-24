@@ -440,12 +440,18 @@ class DocumentRef:
                     target = target[part]
 
                 last_part = parts[-1]
+                # Normalize any corrupt __type artifacts in the stored value
+                curr_val = target.get(last_part)
+                if isinstance(curr_val, dict) and '__type' in curr_val:
+                    curr_val = curr_val.get('value', 0)
+                else:
+                    curr_val = curr_val or 0
                 # Convert serialized FieldValue objects from frontend JSON
                 if isinstance(v, dict) and v.get('__type') == 'increment':
                     inc = Increment(v.get('value', 0))
-                    target[last_part] = target.get(last_part, 0) + inc.value
+                    target[last_part] = curr_val + inc.value
                 elif isinstance(v, Increment):
-                    target[last_part] = target.get(last_part, 0) + v.value
+                    target[last_part] = curr_val + v.value
                 elif isinstance(v, ArrayUnion):
                     lst = target.get(last_part, [])
                     if not isinstance(lst, list):
@@ -542,6 +548,49 @@ class DocumentRef:
 # ═══════════════════════════════════════════════════════════════════
 # Whole-database export / import (used by the JSON backup workflow)
 # ═══════════════════════════════════════════════════════════════════
+def normalize_doc(data: dict) -> dict:
+    """Recursively fix any {__type: ..., value: ...} artifacts stored by old FieldValue mocks."""
+    if isinstance(data, dict):
+        if '__type' in data and 'value' in data:
+            return data['value']
+        return {k: normalize_doc(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [normalize_doc(v) for v in data]
+    return data
+
+
+def fix_playwallet():
+    """
+    Fix all user documents that have {__type: increment, value: N} stored
+    instead of a plain number for play_wallet / balance / bonus fields.
+    Safe to run multiple times — idempotent after the first run.
+    """
+    sess = SessionLocal()
+    try:
+        docs = sess.query(FirestoreDocument).filter(
+            FirestoreDocument.collection == 'users'
+        ).all()
+        fixed = 0
+        for doc in docs:
+            data = json.loads(doc.data) if doc.data else {}
+            changed = False
+            for key in ('play_wallet', 'balance', 'bonus'):
+                val = data.get(key)
+                if isinstance(val, dict) and '__type' in val:
+                    data[key] = val.get('value', 0)
+                    changed = True
+            if changed:
+                doc.data = json.dumps(data)
+                fixed += 1
+        sess.commit()
+        return fixed
+    except Exception:
+        sess.rollback()
+        raise
+    finally:
+        sess.close()
+
+
 def export_all() -> dict:
     """
     Dump every stored document to a plain dict:
@@ -558,7 +607,7 @@ def export_all() -> dict:
                 data = json.loads(row.data) if row.data else {}
             except Exception:
                 data = {}
-            out.setdefault(row.collection, {})[row.doc_id] = data
+            out.setdefault(row.collection, {})[row.doc_id] = normalize_doc(data)
         return out
     finally:
         sess.close()
@@ -592,11 +641,12 @@ def import_all(dump: dict, overwrite: bool = False) -> dict:
             if not isinstance(docs, dict):
                 continue
             for doc_id, data in docs.items():
+                clean = normalize_doc(data) if isinstance(data, dict) else data
                 existing = sess.query(FirestoreDocument).filter(
                     FirestoreDocument.collection == collection,
                     FirestoreDocument.doc_id == str(doc_id),
                 ).first()
-                payload = json.dumps(data if isinstance(data, dict) else {})
+                payload = json.dumps(clean if isinstance(clean, dict) else {})
                 if existing:
                     if overwrite:
                         existing.data = payload

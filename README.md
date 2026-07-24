@@ -1,12 +1,12 @@
-# 🎱 Kelem Bingo
+# Kelem Bingo
 
-A real-time, multiplayer **Telegram Bingo** platform. Players open a Telegram
-Mini App to join rounds, pick cartelas (bingo cards), and watch numbers get
-called live; admins manage deposits, withdrawals, players, and bot content from
-a web dashboard.
+Real-time multiplayer Telegram Bingo platform. Players open a Telegram Mini App
+to join rounds, pick cartelas, and watch numbers called live. Admins manage
+deposits, withdrawals, players, and bot content from a web dashboard.
 
-The whole platform — game bot, admin bot, two support bots, a backup bot, the
-REST/real-time API, and the web dashboard — runs from a **single container**.
+The platform is split across two deployments: the **backend** (Render — bots,
+API, game loop, Socket.IO) and the **frontend** (Vercel — dashboard/game static
+site).
 
 ---
 
@@ -50,33 +50,35 @@ REST/real-time API, and the web dashboard — runs from a **single container**.
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                Render Cloud — single Docker container              │
-│                                                                    │
-│  run_bots.py  (multiprocessing launcher)                           │
-│  ├─ Process: Game Bot          bot.py                              │
-│  ├─ Process: Admin Bot         admin_bot.py                        │
-│  ├─ Process: Support Bot       support_bot.py        (@kelemsupportbot)      │
-│  ├─ Process: Admin Support Bot admin_support_bot.py  (@kelemadminsupportbot) │
-│  ├─ Process: Backup Scheduler  backup_common.py      (@kelembackupbot)       │
-│  └─ Main:    FastAPI + Socket.IO  api/admin_api.py                 │
-│                 ├─ serves the web dashboard + game Mini App         │
-│                 ├─ REST API + Socket.IO real-time events           │
-│                 └─ background game loop (calls numbers, pays out)  │
-│                                   │                                 │
-│                              ┌────▼─────┐                           │
-│                              │ Database │  SQLite (dev)             │
-│                              │ SQLAlchemy│  or PostgreSQL (prod)    │
-│                              └──────────┘                           │
-└──────────────────────────────────────────────────────────────────┘
-        │                                            │
-   Telegram users                              Web browsers
-   (bots + Mini App)                     (dashboard + game board,
-                                          Socket.IO client)
+┌──────────────────────────────────────────┐   ┌─────────────────────────┐
+│      Render Cloud — Docker container       │   │   Vercel (static site) │
+│                                             │   │                         │
+│  run_bots.py  (multiprocessing launcher)     │   │  dashboard/             │
+│  ├─ Process: Game Bot          bot.py        │   │  ├─ index.html (admin) │
+│  ├─ Process: Admin Bot         admin_bot.py  │   │  ├─ game.html (game)   │
+│  ├─ Process: Support Bot       support_bot.py│   │  ├─ env.js             │
+│  ├─ Process: Admin Support Bot ...           │   │  └─ js/...             │
+│  └─ Main:    FastAPI + Socket.IO             │   │                         │
+│                 ├─ REST API                  │   │   env.js →             │
+│                 ├─ Socket.IO events          │   │   window.BACKEND_URL   │
+│                 └─ game loop (numbers, pay)  │   └─────────┬───────────────┘
+│                                   │                       │
+│                              ┌────▼─────┐                 │
+│                              │ Database │  SQLite / PG    │
+│                              │ SQLAlchemy│  (Persistent)  │
+│                              └──────────┘                 │
+└─────────────────────────────────────┬──────────────────────┘
+        │                             │
+   Telegram users              Web browsers
+   (bots + Mini App)           (dashboard + game via Socket.IO)
 ```
 
-All processes share **one database** (via SQLAlchemy), so the bots and the API
-see the same data.
+- **Backend** (Render, `RENDER_API_ONLY=true`): bots + API + game loop, no
+  static file serving (saves ~80 MB RAM on free plan).
+- **Frontend** (Vercel, `dashboard/` as root): static site with `env.js`
+  auto-detecting the backend URL (`BACKEND_URL`).
+- All bots + API share **one database** via SQLAlchemy.
+- `RENDER_API_ONLY` is unset locally so the API also serves the dashboard.
 
 ---
 
@@ -89,7 +91,7 @@ see the same data.
 | Database   | SQLite (dev) / PostgreSQL (prod) via SQLAlchemy |
 | Telegram   | python-telegram-bot v21+ |
 | Frontend   | Vanilla JS + TailwindCSS (CDN, no build step) |
-| Deployment | Docker on Render (free plan, auto-deploy) |
+| Deployment | Docker on Render (backend) + Vercel (frontend) |
 
 ---
 
@@ -97,7 +99,7 @@ see the same data.
 
 ```
 kelembingo/
-├── run_bots.py            # 🚀 Production entry point (launches everything)
+├── run_bots.py            # Production entry point (launches everything)
 ├── bot.py                 # Main game bot (registration, wallet, invites, webapp link)
 ├── admin_bot.py           # Admin game bot (approve deposits/withdrawals)
 ├── support_bot.py         # User support bot (@kelemsupportbot)
@@ -109,6 +111,8 @@ kelembingo/
 ├── requirements.txt
 ├── Dockerfile
 ├── render.yaml            # Render deployment config
+├── migrate_fix_playwallet.py  # One-time migration for corrupted wallet data
+├── simulate_round_scenarios.py  # Monte Carlo testing for predetermined winner
 │
 ├── api/
 │   └── admin_api.py       # FastAPI app: REST + Socket.IO + game loop
@@ -124,13 +128,20 @@ kelembingo/
 │   ├── withdraw_handler.py
 │   └── bot_content.py     # Editable bot messages + config defaults
 │
-├── dashboard/             # Web dashboard + game Mini App (static, served by API)
+├── dashboard/             # Web dashboard + game Mini App (deployed to Vercel)
+│   ├── vercel.json        # Vercel config: rewrites, favicon redirect
 │   ├── index.html         # Admin dashboard
 │   ├── game.html          # Player game board / Mini App
+│   ├── login.html         # Admin login page
+│   ├── env.js             # Auto-detects backend URL (window.BACKEND_URL)
+│   ├── audio/             # Sound effects (called number, bingo, winner)
+│   ├── img/               # SVG assets (favicon, etc.)
 │   ├── js/admin/          # Dashboard modules (users, payments, backup, …)
-│   └── js/firebase.js     # Client-side Firestore mock (REST + Socket.IO bridge)
+│   ├── js/firebase.js     # Client-side Firestore mock (REST + Socket.IO bridge)
+│   ├── js/game-board.js   # Game board UI with auto-mark toggle
+│   └── js/wallet.js       # Deposit/withdraw UI
 │
-└── status/                # In-depth architecture notes
+└── tests/                 # 48 tests + Monte Carlo (900 rounds)
 ```
 
 ---
@@ -221,7 +232,9 @@ WEBAPP_URL=https://your-app.onrender.com
 | `ADMIN_BOT_TOKEN` | ✅ | — | Admin bot token (must differ from `BOT_TOKEN`) |
 | `ADMIN_CHAT_ID` | ✅ | — | Admin's Telegram user id (auth + support routing + backups) |
 | `DATABASE_URL` | ➖ | `sqlite:///kelembingo.db` | SQLAlchemy URL; use Postgres in production |
-| `WEBAPP_URL` | ➖ | — | Public URL of the Mini App / dashboard |
+| `WEBAPP_URL` | ➖ | `https://kelembingo.vercel.app/game` | Public URL of the Mini App |
+| `BACKEND_URL` | ➖ | — | Backend API URL (auto-detected by `env.js`) |
+| `RENDER_API_ONLY` | ➖ | — | Set `true` on Render to skip static file serving (saves RAM) |
 | `SUPPORT_USERNAME` | ➖ | `kelemsupportbot` | Support handle shown in the game bot |
 | `TELEBIRR_NUMBER` | ➖ | `+251911000000` | Deposit destination number |
 | `DEFAULT_STAKE_10` / `DEFAULT_STAKE_20` | ➖ | `10` / `20` | Stake presets |
@@ -234,7 +247,7 @@ WEBAPP_URL=https://your-app.onrender.com
 | `BACKUP_INTERVAL_MINUTES` | ➖ | `15` | Auto-backup interval |
 
 > Most money/limit values are also editable at runtime from the dashboard's
-> **💰 Amounts & Limits** tab (stored in the `bot_content` collection) and take
+> **Amounts & Limits** tab (stored in the `bot_content` collection) and take
 > effect instantly.
 
 ---
@@ -248,26 +261,32 @@ python run_bots.py
 ```
 
 Launches all bots, the backup scheduler, and the FastAPI + Socket.IO server on
-`PORT` (default `8000`).
+`PORT` (default `8000`). Dashboard is served at `http://localhost:8000` when
+`RENDER_API_ONLY` is unset.
 
-### API / dashboard only
+### API only (no bots)
 
 ```bash
-python run_api.py         # serves dashboard + API at http://localhost:8000
+python run_api.py         # API + dashboard at http://localhost:8000
 ```
+
+### Frontend (Vercel)
+
+The `dashboard/` folder is deployed as a Vercel static site. `env.js`
+auto-detects the backend URL — set `window.BACKEND_URL` manually if needed.
 
 ### With Docker
 
 ```bash
 docker compose up --build
-# dashboard → http://localhost:8000
+# → http://localhost:8000
 ```
 
 ---
 
 ## Admin Dashboard
 
-Served at `/` by the API (login at `/login`). Sections:
+Served at the Vercel URL (default `https://kelembingo.vercel.app`). Sections:
 
 - **Dashboard** — live stats.
 - **Users** — search, view, adjust balance, ban/unban.
@@ -276,56 +295,58 @@ Served at `/` by the API (login at `/login`). Sections:
 - **Reports** — revenue and activity.
 - **Payments** — approve/reject deposits and withdrawals.
 - **Settings** — bot config and admin password.
-- **Bot Content** — edit every bot message; the first tab **💰 Amounts & Limits**
+- **Bot Content** — edit every bot message; the first tab **Amounts & Limits**
   edits money/limits live.
-- **💾 Data Backup** — status, "Back Up Now", and "Restore".
+- **Data Backup** — status, "Back Up Now", and "Restore" (only works when
+  `ADMIN_CHAT_ID` is set and the backup bot is configured).
 
 ---
 
 ## Data Backup & Restore
 
-Render's free plan **wipes the container disk on every deploy**, so a local
-SQLite database (and all user data) would be lost each time. To prevent this,
-the platform keeps a single JSON snapshot of the whole database inside the
-**backup bot** (`@kelembackupbot`).
+Render's free plan wipes the container disk on every deploy, so a local SQLite
+database would be lost. The backup bot (`@kelembackupbot`) stores JSON snapshots
+to recover data after a restart.
 
 **How it works**
 
-1. **Backup** — `create_backup()` exports the entire document store to JSON,
-   uploads it to the admin's chat with the backup bot, and **pins** that
-   message.
-2. **Finding the latest snapshot after a restart** — because a bot can read a
-   chat's *pinned* message on startup, no extra storage is needed to locate the
-   most recent backup.
-3. **Restore** — on a fresh (empty) deploy, `restore_if_empty()` downloads the
-   pinned JSON and seeds every record back **by id**. A safe restore only
-   inserts missing documents and never clobbers live data (overwrite is opt-in).
-4. **Automation** — a background scheduler backs up every
-   `BACKUP_INTERVAL_MINUTES` (default 15); manual **Back Up Now** / **Restore**
-   buttons live in the dashboard's Data Backup section.
+1. `create_backup()` exports the document store to JSON, uploads it to the
+   admin's chat with the backup bot, and pins the message.
+2. On startup, `restore_if_empty()` downloads the pinned backup and re-seeds an
+   empty database.
+3. A background scheduler backs up every `BACKUP_INTERVAL_MINUTES` (default 15);
+   manual controls live in the dashboard's Data Backup section.
 
-**One-time setup:** the admin must press **Start** on `@kelembackupbot` once, and
-`ADMIN_CHAT_ID` must be set. Until then, backups stay disabled and the dashboard
-shows a clear warning.
+**One-time setup:** press Start on `@kelembackupbot` and set `ADMIN_CHAT_ID`.
 
-> ⚠️ This is a **safety net, not a live replica** — data written between the
-> last snapshot and a deploy can still be lost. For zero-data-loss, point
-> `DATABASE_URL` at a managed PostgreSQL instance instead.
+> This is a safety net, not a live replica. For zero-data-loss, use a managed
+> PostgreSQL database (`DATABASE_URL`).
 
 ---
 
-## Deployment (Render)
+## Deployment
+
+### Backend (Render)
 
 The repo ships a `render.yaml` and a `Dockerfile`. On Render:
 
-1. Create a new **Web Service** from this repo (Docker runtime).
-2. Set the environment variables above (at minimum `BOT_TOKEN`,
-   `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`).
+1. Create a **Web Service** from this repo (Docker runtime).
+2. Set env vars: `BOT_TOKEN`, `ADMIN_BOT_TOKEN`, `ADMIN_CHAT_ID`,
+   `RENDER_API_ONLY=true`.
 3. Deploy. The container runs `python run_bots.py`.
 4. Health check: `GET /api/health`.
 
-For durable data, either attach a managed PostgreSQL database and set
-`DATABASE_URL`, or rely on the [backup bot](#data-backup--restore).
+### Frontend (Vercel)
+
+1. Connect `dashboard/` as a Vercel project (root directory: `dashboard`).
+2. No build step — Vercel serves the static files directly.
+3. `env.js` auto-detects the backend URL from `window.location`.
+
+### Data persistence
+
+On Render's free plan, the container disk is **ephemeral** — SQLite data is lost
+on every deploy. Use a managed PostgreSQL (`DATABASE_URL`) for durable storage,
+or rely on the backup bot for snapshot-based recovery.
 
 ---
 
@@ -355,16 +376,17 @@ events), mirroring Firestore's `onSnapshot`.
 
 ## Troubleshooting
 
-- **`409 Conflict` from Telegram** — `BOT_TOKEN` and `ADMIN_BOT_TOKEN` must be
-  two *different* bots; `config.py` logs a critical error if they match.
+- **409 Conflict from Telegram** — `BOT_TOKEN` and `ADMIN_BOT_TOKEN` must be
+  two different bots; `config.py` logs a critical error if they match.
 - **Data disappears after deploy** — expected on ephemeral disks; enable the
   backup bot or use a managed `DATABASE_URL`. See [Backup](#data-backup--restore).
 - **Backups disabled** — press Start on `@kelembackupbot` and set `ADMIN_CHAT_ID`.
 - **Support replies not routing** — ensure `ADMIN_CHAT_ID` is set and the admin
   has started the admin support bot.
+- **Frontend can't reach backend** — check that `env.js` resolves the correct
+  `BACKEND_URL` (or set it manually in Vercel env vars).
 
 ---
-
 ## License
 
-ISC (see `package.json`).
+ISC
