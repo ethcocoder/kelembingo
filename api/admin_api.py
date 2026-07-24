@@ -1034,6 +1034,8 @@ async def admin_approve_deposit(deposit_id: str, req: DepositActionRequest):
         'processedAt': datetime.now(tz=timezone.utc).isoformat(),
         'adminNote': req.note or 'Approved by admin'
     })
+    await broadcast_event('users', user_id)
+    await broadcast_event('deposits', deposit_id)
 
     # Notify user via bot
     try:
@@ -1064,6 +1066,7 @@ async def admin_reject_deposit(deposit_id: str, req: DepositActionRequest):
         'processedAt': datetime.now(tz=timezone.utc).isoformat(),
         'adminNote': note
     })
+    await broadcast_event('deposits', deposit_id)
     try:
         bot = Bot(token=BOT_TOKEN)
         await bot.send_message(
@@ -1152,6 +1155,7 @@ async def admin_approve_withdrawal(withdrawal_id: str, req: DepositActionRequest
         'processedAt': datetime.now(tz=timezone.utc).isoformat(),
         'adminNote': req.note or 'Approved by admin'
     })
+    await broadcast_event('withdrawals', withdrawal_id)
     try:
         from handlers.bot_content import get_bot_text
         bot = Bot(token=BOT_TOKEN)
@@ -1181,6 +1185,7 @@ async def admin_reject_withdrawal(withdrawal_id: str, req: DepositActionRequest)
         'processedAt': datetime.now(tz=timezone.utc).isoformat(),
         'adminNote': note
     })
+    await broadcast_event('withdrawals', withdrawal_id)
     if amount > 0:
         user_snap = db.collection('users').document(user_id).get()
         if user_snap.exists:
@@ -1189,6 +1194,7 @@ async def admin_reject_withdrawal(withdrawal_id: str, req: DepositActionRequest)
                 'play_wallet': (u.get('play_wallet', 0) or 0) + amount,
                 'updated_at': datetime.now(tz=timezone.utc).isoformat()
             })
+            await broadcast_event('users', user_id)
     try:
         from handlers.bot_content import get_bot_text
         bot = Bot(token=BOT_TOKEN)
@@ -1210,6 +1216,7 @@ async def admin_edit_balance(user_id: int, req: BalanceEditRequest):
         'play_wallet': req.new_balance,
         'updated_at': datetime.now(tz=timezone.utc).isoformat()
     })
+    await broadcast_event('users', str(user_id))
     return {"ok": True}
 
 
@@ -1524,7 +1531,7 @@ async def _event_broadcast_loop():
                     logger.warning(f"Error broadcasting event {ev.collection}/{ev.doc_id}: {ev_err}")
         except Exception as e:
             logger.warning(f"Error in event broadcast loop: {e}")
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.25)
 
 
 def _fetch_events(last_id: str):
@@ -1591,8 +1598,8 @@ if not os.environ.get("RENDER_API_ONLY"):
         app.mount("/pages", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "pages")), name="pages")
     if os.path.isdir(os.path.join(DASHBOARD_DIR, "components")):
         app.mount("/components", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "components")), name="components")
-    if os.path.isdir(os.path.join(DASHBOARD_DIR, "public", "audio")):
-        app.mount("/audio", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "public", "audio")), name="audio")
+    if os.path.isdir(os.path.join(DASHBOARD_DIR, "audio")):
+        app.mount("/audio", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "audio")), name="audio")
 
 
 if __name__ == "__main__":
