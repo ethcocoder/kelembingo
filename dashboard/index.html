@@ -15,10 +15,7 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase SDK replaced by local SQL emulator bridge -->
-    <script>
-        // Set API base before firebase.js loads so the emulator can find it
-        window.API_BASE = window.location.origin;
-    </script>
+    <script src="env.js"></script>
     <script>
         tailwind.config = {
             theme: {

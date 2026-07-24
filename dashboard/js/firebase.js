@@ -8,6 +8,7 @@
 (function () {
     // ── Detect API base URL ──────────────────────────────────
     const API_BASE = (function () {
+        if (window.BACKEND_URL && window.BACKEND_URL !== 'null' && window.BACKEND_URL !== 'about:blank') return window.BACKEND_URL;
         if (window.API_BASE && window.API_BASE !== 'null' && window.API_BASE !== 'about:blank') return window.API_BASE;
         // Fallback: construct from protocol + host
         try {

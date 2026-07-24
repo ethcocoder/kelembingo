@@ -30,7 +30,8 @@ async def _db(call):
 
 ALLOWED_ORIGINS = [
     "https://kelembingo.onrender.com",
-]  # Clients now connect from window.location.origin (same service)
+    "https://kelembingo.vercel.app",
+]
 
 
 # ─── Socket.IO Server ───
@@ -1531,54 +1532,56 @@ def _fetch_events(last_id: str):
 
 
 # ─── Dashboard & game (served from same service as API + bots) ───
+# Set RENDER_API_ONLY=true in Render env to skip static files and save memory.
 DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dashboard")
 
+if not os.environ.get("RENDER_API_ONLY"):
 
-@app.get("/")
-async def dashboard_home():
-    return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
-
-
-@app.get("/index.html")
-async def dashboard_home_alias():
-    return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
+    @app.get("/")
+    async def dashboard_home():
+        return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
 
 
-@app.get("/game")
-async def game_page():
-    return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
+    @app.get("/index.html")
+    async def dashboard_home_alias():
+        return FileResponse(os.path.join(DASHBOARD_DIR, "index.html"))
 
 
-@app.get("/game.html")
-async def game_page_alias():
-    return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
+    @app.get("/game")
+    async def game_page():
+        return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
 
 
-@app.get("/login")
-async def login_page():
-    return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
+    @app.get("/game.html")
+    async def game_page_alias():
+        return FileResponse(os.path.join(DASHBOARD_DIR, "game.html"))
 
 
-@app.get("/login.html")
-async def login_page_alias():
-    return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
+    @app.get("/login")
+    async def login_page():
+        return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
 
 
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return Response(status_code=204)
+    @app.get("/login.html")
+    async def login_page_alias():
+        return FileResponse(os.path.join(DASHBOARD_DIR, "login.html"))
 
 
-if os.path.isdir(os.path.join(DASHBOARD_DIR, "css")):
-    app.mount("/css", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "css")), name="css")
-if os.path.isdir(os.path.join(DASHBOARD_DIR, "js")):
-    app.mount("/js", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "js")), name="js")
-if os.path.isdir(os.path.join(DASHBOARD_DIR, "pages")):
-    app.mount("/pages", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "pages")), name="pages")
-if os.path.isdir(os.path.join(DASHBOARD_DIR, "components")):
-    app.mount("/components", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "components")), name="components")
-if os.path.isdir(os.path.join(DASHBOARD_DIR, "public", "audio")):
-    app.mount("/audio", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "public", "audio")), name="audio")
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        return Response(status_code=204)
+
+
+    if os.path.isdir(os.path.join(DASHBOARD_DIR, "css")):
+        app.mount("/css", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "css")), name="css")
+    if os.path.isdir(os.path.join(DASHBOARD_DIR, "js")):
+        app.mount("/js", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "js")), name="js")
+    if os.path.isdir(os.path.join(DASHBOARD_DIR, "pages")):
+        app.mount("/pages", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "pages")), name="pages")
+    if os.path.isdir(os.path.join(DASHBOARD_DIR, "components")):
+        app.mount("/components", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "components")), name="components")
+    if os.path.isdir(os.path.join(DASHBOARD_DIR, "public", "audio")):
+        app.mount("/audio", StaticFiles(directory=os.path.join(DASHBOARD_DIR, "public", "audio")), name="audio")
 
 
 if __name__ == "__main__":
