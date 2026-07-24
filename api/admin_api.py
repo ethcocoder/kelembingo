@@ -1361,7 +1361,7 @@ def backup_restore(req: RestoreRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/api/admin/backup/test-pin")
+@app.get("/api/admin/backup/test-pin")
 def backup_test_pin():
     """Test pinChatMessage works: send a tiny doc, pin it, verify, then unpin."""
     import backup_common as bc
