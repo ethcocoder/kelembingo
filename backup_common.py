@@ -205,6 +205,16 @@ def restore_latest(overwrite: bool = False) -> dict:
     return stats
 
 
+def wipe_pinned_backup() -> dict:
+    """Unpin all backup messages from the backup bot chat so nothing can be restored."""
+    _require_chat()
+    try:
+        _call("unpinAllChatMessages", data={"chat_id": BACKUP_CHAT_ID})
+        return {"ok": True}
+    except BackupError as e:
+        raise BackupError(f"Failed to wipe pinned backup: {e}")
+
+
 def restore_if_empty() -> dict:
     """
     Auto-restore used on startup: only restores when the DB has no documents,

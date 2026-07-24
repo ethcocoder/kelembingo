@@ -797,6 +797,20 @@
                 <button id="restoreBtn" onclick="runRestore()" class="btn-purple-g w-full py-3 rounded-xl text-sm font-semibold">Restore From Backup</button>
             </div>
         </div>
+
+        <!-- Wipe All Data -->
+        <div class="mt-8 pt-8 border-t border-white/10">
+            <div class="glass rounded-2xl p-6 max-w-lg mx-auto text-center border-red-500/20">
+                <div class="text-4xl mb-3">🗑️</div>
+                <h4 class="text-lg font-bold mb-2">Wipe All Data</h4>
+                <p class="text-xs text-gray-500 mb-5">Deletes all users, rounds, cartelas, payments, reports, and unpins the Telegram backup. The database starts completely empty.</p>
+                <label class="flex items-center justify-center gap-2 mb-4 cursor-pointer select-none">
+                    <input type="checkbox" id="wipeConfirm" class="w-4 h-4 accent-red-500">
+                    <span class="text-xs text-red-400 font-semibold">I understand this is permanent</span>
+                </label>
+                <button id="wipeAllBtn" onclick="runWipeAll()" disabled class="w-full py-3 rounded-xl text-sm font-semibold bg-red-600/30 text-red-400 cursor-not-allowed border border-red-500/30">Wipe All Data</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -975,6 +989,7 @@
 <script src="js/admin/payments.js"></script>
 <script src="js/admin/botcontent.js"></script>
 <script src="js/admin/backup.js"></script>
+<script src="js/admin/wipe.js"></script>
 <script src="js/admin/navigation.js"></script>
 <script src="js/admin/listeners.js"></script>
 </body>

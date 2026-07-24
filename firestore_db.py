@@ -622,6 +622,21 @@ def count_documents() -> int:
         sess.close()
 
 
+def delete_all_documents() -> dict:
+    """Delete every document and system event from the store. Returns rows deleted per table."""
+    sess = SessionLocal()
+    try:
+        docs = sess.query(FirestoreDocument).delete()
+        events = sess.query(SystemEvent).delete()
+        sess.commit()
+        return {"documents": docs, "events": events}
+    except Exception:
+        sess.rollback()
+        raise
+    finally:
+        sess.close()
+
+
 def import_all(dump: dict, overwrite: bool = False) -> dict:
     """
     Seed documents from an export_all()-shaped dict.

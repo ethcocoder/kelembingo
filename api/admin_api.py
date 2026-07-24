@@ -1344,6 +1344,26 @@ def backup_restore(req: RestoreRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/api/admin/wipe-all")
+def wipe_all(req: RestoreRequest):
+    """
+    Delete every document from the DB and unpin all backup messages from the
+    backup bot chat. Requires confirm=True to guard against accidents.
+    """
+    if not req.confirm:
+        raise HTTPException(status_code=400, detail="Wipe requires confirm=true.")
+    import backup_common as bc
+    import firestore_db
+    result = {"backup_unpinned": False, "deleted": {}}
+    try:
+        bc.wipe_pinned_backup()
+        result["backup_unpinned"] = True
+    except Exception as e:
+        result["backup_error"] = str(e)
+    result["deleted"] = firestore_db.delete_all_documents()
+    return {"ok": True, **result}
+
+
 # ─── Dashboard & game (served from same service as API + bots) ───
 
 
