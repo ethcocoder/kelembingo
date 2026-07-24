@@ -1361,47 +1361,7 @@ def backup_restore(req: RestoreRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/api/admin/backup/test-pin")
-def backup_test_pin():
-    """Test pinChatMessage works: send a tiny doc, pin it, verify, then unpin."""
-    import backup_common as bc
-    import io, json
-    results = {}
-    # 1) check chat exists
-    try:
-        chat = bc._call("getChat", data={"chat_id": bc.BACKUP_CHAT_ID})
-        results["chat"] = {"id": chat.get("id"), "type": chat.get("type"), "pinned": bool(chat.get("pinned_message"))}
-    except Exception as e:
-        return {"ok": False, "step": "getChat", "error": str(e)}
-    # 2) send a test document
-    try:
-        test_data = json.dumps({"test": True}).encode()
-        r = bc._call("sendDocument", data={"chat_id": bc.BACKUP_CHAT_ID, "caption": "test_pin"},
-                       files={"document": ("test.json", io.BytesIO(test_data), "application/json")})
-        msg_id = r.get("message_id")
-        results["send"] = {"message_id": msg_id}
-    except Exception as e:
-        return {"ok": False, "step": "sendDocument", "error": str(e)}
-    # 3) pin it
-    try:
-        bc._call("pinChatMessage", data={"chat_id": bc.BACKUP_CHAT_ID, "message_id": msg_id, "disable_notification": True})
-        results["pin"] = "OK"
-    except Exception as e:
-        results["pin"] = f"FAILED: {e}"
-    # 4) verify pin
-    try:
-        chat2 = bc._call("getChat", data={"chat_id": bc.BACKUP_CHAT_ID})
-        pinned_msg_id = (chat2.get("pinned_message") or {}).get("message_id")
-        results["verify"] = {"pinned_message_id": pinned_msg_id, "match": pinned_msg_id == msg_id}
-    except Exception as e:
-        results["verify"] = f"error: {e}"
-    # 5) cleanup — unpin
-    try:
-        bc._call("unpinAllChatMessages", data={"chat_id": bc.BACKUP_CHAT_ID})
-        results["cleanup"] = "OK"
-    except Exception as e:
-        results["cleanup"] = f"failed: {e}"
-    return {"ok": True, "chat_id": bc.BACKUP_CHAT_ID, "results": results}
+
 
 
 @app.post("/api/admin/wipe-all")
