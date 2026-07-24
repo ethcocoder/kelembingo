@@ -244,7 +244,7 @@ WEBAPP_URL=https://your-app.onrender.com
 | `MAX_WITHDRAW_PER_DAY` | ➖ | `3` | Daily withdrawal count limit |
 | `WITHDRAW_COOLDOWN_HOURS` | ➖ | `4` | Cooldown between withdrawals |
 | `BONUS_TO_ETB_RATE` | ➖ | `10` | Bonus-coin → ETB conversion rate |
-| `BACKUP_INTERVAL_MINUTES` | ➖ | `15` | Auto-backup interval |
+| `BACKUP_INTERVAL_MINUTES` | ➖ | `1` | Auto-backup interval (default 1 min; set higher to save Telegram API calls) |
 
 > Most money/limit values are also editable at runtime from the dashboard's
 > **Amounts & Limits** tab (stored in the `bot_content` collection) and take
@@ -314,7 +314,7 @@ to recover data after a restart.
    admin's chat with the backup bot, and pins the message.
 2. On startup, `restore_if_empty()` downloads the pinned backup and re-seeds an
    empty database.
-3. A background scheduler backs up every `BACKUP_INTERVAL_MINUTES` (default 15);
+3. A background scheduler backs up every `BACKUP_INTERVAL_MINUTES` (default 1);
    manual controls live in the dashboard's Data Backup section.
 
 **One-time setup:** press Start on `@kelembackupbot` and set `ADMIN_CHAT_ID`.

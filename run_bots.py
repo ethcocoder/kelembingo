@@ -60,7 +60,7 @@ def run_backup_scheduler():
         logger.error(f"Backup scheduler import error: {e}", exc_info=True)
         return
 
-    interval = max(1, int(os.getenv("BACKUP_INTERVAL_MINUTES", "15"))) * 60
+    interval = max(1, int(os.getenv("BACKUP_INTERVAL_MINUTES", "1"))) * 60
     if not bc.BACKUP_CHAT_ID:
         logger.warning("ADMIN_CHAT_ID not set — automatic backups are disabled.")
         return
