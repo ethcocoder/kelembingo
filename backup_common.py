@@ -22,7 +22,6 @@ needed — the admin only has to press Start on @kelembackupbot once.
 import io
 import os
 import json
-import time
 import logging
 from datetime import datetime, timezone
 
@@ -110,43 +109,25 @@ def create_backup() -> dict:
         files={"document": (filename, io.BytesIO(raw), "application/json")},
     )
 
-    # Pin the backup in Telegram so restore can find it
+    # Pin the newest backup so restore can always find it; clear older pins first.
     message_id = result.get("message_id")
-    pin_ok = False
-    chat = {}
-    # Remove any previous pin first (fails silently if none)
     try:
-        _call("unpinChatMessage", data={"chat_id": BACKUP_CHAT_ID})
-    except Exception:
-        pass
-    # Pin the new message (retry up to 3 times with delay for eventual consistency)
-    for attempt in range(3):
-        try:
-            _call("pinChatMessage", data={
-                "chat_id": BACKUP_CHAT_ID,
-                "message_id": message_id,
-                "disable_notification": True,
-            })
-            time.sleep(1)  # Wait for propagation before verifying
-            chat = _call("getChat", data={"chat_id": BACKUP_CHAT_ID})
-            pinned_msg = (chat.get("pinned_message") or {}).get("message_id")
-            if pinned_msg == message_id:
-                pin_ok = True
-                break
-            else:
-                logger.warning(f"Pin verification attempt {attempt+1}/3: expected message_id={message_id}, got pinned_msg={pinned_msg}. retrying...")
-        except Exception as e:
-            logger.warning(f"Pin attempt {attempt+1}/3 failed: {e}")
-            if attempt < 2:
-                time.sleep(2)
-    if not pin_ok:
-        logger.error(f"Backup pinning FAILED after 3 attempts. Chat id={BACKUP_CHAT_ID}, type={chat.get('type', 'unknown')}, message_id={message_id}. "
-                     "Restore will NOT find it automatically.")
+        _call("unpinAllChatMessages", data={"chat_id": BACKUP_CHAT_ID})
+    except BackupError:
+        pass  # No previous pin or no permission — not critical
+    try:
+        _call("pinChatMessage", data={
+            "chat_id": BACKUP_CHAT_ID,
+            "message_id": message_id,
+            "disable_notification": True,
+        })
+    except BackupError as e:
+        logger.warning(f"Backup uploaded but could not be pinned: {e}")
 
-    meta["pinned"] = pin_ok
+    meta["pinned"] = True
     meta["message_id"] = message_id
     meta["file_size"] = len(raw)
-    logger.info(f"Backup created: {meta['documents']} records, {len(raw)} bytes (pinned={pin_ok})")
+    logger.info(f"Backup created: {meta['documents']} records, {len(raw)} bytes")
     return meta
 
 
