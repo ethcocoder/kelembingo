@@ -1340,6 +1340,17 @@ def backup_restore(req: RestoreRequest):
 # ─── Dashboard & game (served from same service as API + bots) ───
 
 
+def _normalize_doc(data: dict) -> dict:
+    """Recursively fix any {__type: ..., value: ...} artifacts stored by old FieldValue mocks."""
+    if isinstance(data, dict):
+        if '__type' in data and 'value' in data:
+            return data['value']
+        return {k: _normalize_doc(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_normalize_doc(v) for v in data]
+    return data
+
+
 class DocSetRequest(BaseModel):
     data: dict
     merge: bool = False
@@ -1359,7 +1370,7 @@ async def db_get_doc(collection: str, doc_id: str):
     snap = db.collection(collection).document(doc_id).get()
     if not snap.exists:
         raise HTTPException(status_code=404, detail="Document not found")
-    return {"id": snap.id, "data": snap.to_dict()}
+    return {"id": snap.id, "data": _normalize_doc(snap.to_dict())}
 
 
 @app.post("/api/db/{collection}/{doc_id}")
@@ -1405,7 +1416,7 @@ async def db_query_collection(
     if limit_n:
         ref = ref.limit(limit_n)
     docs = ref.get()
-    return [{"id": d.id, "data": d.to_dict()} for d in docs]
+    return [{"id": d.id, "data": _normalize_doc(d.to_dict())} for d in docs]
 
 
 @app.post("/api/db/{collection}")
