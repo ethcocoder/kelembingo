@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import uuid
-import datetime
+from datetime import datetime, date, timezone
 import logging
 import sqlalchemy
 from sqlalchemy import create_engine, Column, String, Text, DateTime, func
@@ -36,8 +36,8 @@ class FirestoreDocument(Base):
     collection = Column(String, primary_key=True)
     doc_id = Column(String, primary_key=True)
     data = Column(Text)  # JSON string representation
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class SystemEvent(Base):
     __tablename__ = 'system_events'
@@ -45,7 +45,7 @@ class SystemEvent(Base):
     collection = Column(String)
     doc_id = Column(String)
     event_type = Column(String)  # 'set', 'update', 'delete'
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 # Create tables (defensively catch race conditions under concurrent multi-process startup)
 try:
@@ -534,7 +534,7 @@ class DocumentRef:
         return cleaned
 
     def _serialize_val(self, val):
-        if isinstance(val, (datetime.datetime, datetime.date)):
+        if isinstance(val, (datetime, date)):
             return val.isoformat()
         if hasattr(val, 'to_datetime'):
             return val.to_datetime().isoformat()

@@ -33,6 +33,12 @@ ALLOWED_ORIGINS = [
     "https://kelembingo.vercel.app",
 ]
 
+# Additional origins that match by suffix (preview deployments, etc.)
+ALLOWED_ORIGIN_SUFFIXES = [
+    ".vercel.app",
+    ".onrender.com",
+]
+
 
 # ─── Socket.IO Server ───
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=ALLOWED_ORIGINS)
@@ -54,9 +60,19 @@ class CORSASGIMiddleware:
     correct Access-Control-* headers.
     """
 
-    def __init__(self, app, allowed_origins):
+    def __init__(self, app, allowed_origins, allowed_suffixes=None):
         self.app = app
         self.allowed_origins = set(allowed_origins)
+        self.allowed_suffixes = tuple(allowed_suffixes or [])
+
+    def _origin_allowed(self, origin: str) -> bool:
+        if not origin:
+            return False
+        if origin in self.allowed_origins:
+            return True
+        if self.allowed_suffixes and origin.endswith(self.allowed_suffixes):
+            return True
+        return False
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -71,7 +87,7 @@ class CORSASGIMiddleware:
                 origin = val.decode("latin-1")
                 break
 
-        if not origin or origin not in self.allowed_origins:
+        if not self._origin_allowed(origin):
             # No origin or not allowed — pass through without CORS headers
             await self.app(scope, receive, send)
             return
@@ -109,7 +125,7 @@ class CORSASGIMiddleware:
 
 # Mount Socket.IO on the FastAPI app, then wrap with outer CORS
 _raw_socket_app = socketio.ASGIApp(sio, app)
-socket_app = CORSASGIMiddleware(_raw_socket_app, ALLOWED_ORIGINS)
+socket_app = CORSASGIMiddleware(_raw_socket_app, ALLOWED_ORIGINS, ALLOWED_ORIGIN_SUFFIXES)
 
 engine = RoundEngine(db)
 user_manager = UserManager(db)
