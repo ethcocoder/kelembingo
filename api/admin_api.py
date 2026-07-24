@@ -23,6 +23,11 @@ from telegram import Bot
 
 logger = logging.getLogger(__name__)
 
+# ─── Async DB Helper ───
+async def _db(call):
+    """Run a synchronous MockFirestore call in a thread to avoid blocking the event loop."""
+    return await asyncio.to_thread(call)
+
 ALLOWED_ORIGINS = [
     "https://kelembingo.onrender.com",
 ]  # Clients now connect from window.location.origin (same service)
@@ -170,7 +175,7 @@ async def _game_loop(round_id: str):
     """Background task: wait for selection deadline, then start if players exist."""
     try:
         while True:
-            round_doc = db.collection('rounds').document(round_id).get()
+            round_doc = await _db(lambda: db.collection('rounds').document(round_id).get())
             if not round_doc.exists:
                 return
             data = round_doc.to_dict()
@@ -207,19 +212,19 @@ async def _game_loop(round_id: str):
                         round_stake = data.get('stake', DEFAULT_STAKE)
                         total_pool = player_count * round_stake
                         derash = total_pool * 0.75
-                        db.collection('rounds').document(round_id).update({
+                        await _db(lambda: db.collection('rounds').document(round_id).update({
                             'status': 'playing',
                             'derash': derash,
                             'game_started_at': now,
                             'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
                             'pending_selections': {},
-                        })
+                        }))
                         await broadcast_event('rounds', round_id)
                         break
                     else:
                         # Grace period: wait 5s for late joins before cancelling
                         await asyncio.sleep(5)
-                        recheck = db.collection('rounds').document(round_id).get()
+                        recheck = await _db(lambda: db.collection('rounds').document(round_id).get())
                         if not recheck.exists:
                             return
                         recheck_data = recheck.to_dict()
@@ -233,17 +238,17 @@ async def _game_loop(round_id: str):
                             round_stake = recheck_data.get('stake', DEFAULT_STAKE)
                             total_pool = recheck_pc * round_stake
                             derash = total_pool * 0.75
-                            db.collection('rounds').document(round_id).update({
+                            await _db(lambda: db.collection('rounds').document(round_id).update({
                                 'status': 'playing',
                                 'derash': derash,
                                 'game_started_at': now,
                                 'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
                                 'pending_selections': {},
-                            })
+                            }))
                             await broadcast_event('rounds', round_id)
                             break
                         # Still no players — cancel
-                        db.collection('rounds').document(round_id).update({
+                        await _db(lambda: db.collection('rounds').document(round_id).update({
                             'status': 'completed',
                             'winners': [],
                             'winner_name': 'No players',
@@ -251,7 +256,7 @@ async def _game_loop(round_id: str):
                             'admin_profit': 0,
                             'payout_processed': True,
                             'completed_at': datetime.now(tz=timezone.utc),
-                        })
+                        }))
                         await broadcast_event('rounds', round_id)
                         return
 
@@ -260,7 +265,7 @@ async def _game_loop(round_id: str):
         # Now call numbers every 5 seconds
         called = []
         while True:
-            round_doc = db.collection('rounds').document(round_id).get()
+            round_doc = await _db(lambda: db.collection('rounds').document(round_id).get())
             if not round_doc.exists:
                 return
             data = round_doc.to_dict()
@@ -276,7 +281,7 @@ async def _game_loop(round_id: str):
                     for uid in winners:
                         try: await broadcast_event('users', str(uid))
                         except: pass
-                    db.collection('rounds').document(round_id).update({'payout_processed': True})
+                    await _db(lambda: db.collection('rounds').document(round_id).update({'payout_processed': True}))
                     await broadcast_event('rounds', round_id)
                 return
 
@@ -297,17 +302,19 @@ async def _game_loop(round_id: str):
 
             if not available:
                 player_count = data.get('player_count', 0)
-                for uid_str in data.get('players', {}):
-                    user_ref = db.collection('users').document(uid_str)
-                    user_doc = user_ref.get()
-                    if user_doc.exists:
-                        ud = user_doc.to_dict()
-                        user_ref.update({
-                            'losses': ud.get('losses', 0) + 1,
-                            'is_playing': False,
-                            'updated_at': datetime.now(tz=timezone.utc),
-                        })
-                db.collection('rounds').document(round_id).update({
+                def _update_losses():
+                    for uid_str in data.get('players', {}):
+                        user_ref = db.collection('users').document(uid_str)
+                        user_doc = user_ref.get()
+                        if user_doc.exists:
+                            ud = user_doc.to_dict()
+                            user_ref.update({
+                                'losses': ud.get('losses', 0) + 1,
+                                'is_playing': False,
+                                'updated_at': datetime.now(tz=timezone.utc),
+                            })
+                await _db(_update_losses)
+                await _db(lambda: db.collection('rounds').document(round_id).update({
                     'status': 'completed',
                     'winners': [],
                     'winner_name': 'No winner',
@@ -315,7 +322,7 @@ async def _game_loop(round_id: str):
                     'admin_profit': 0,
                     'payout_processed': True,
                     'completed_at': datetime.now(tz=timezone.utc),
-                })
+                }))
                 await broadcast_event('rounds', round_id)
                 return
 
@@ -329,19 +336,19 @@ async def _game_loop(round_id: str):
                 called = list(data.get('called_numbers', []))
                 called.append(number)
                 now = datetime.now(tz=timezone.utc)
-                db.collection('rounds').document(round_id).update({
+                await _db(lambda: db.collection('rounds').document(round_id).update({
                     'called_numbers': called,
                     'last_called_number': number,
                     'last_called_at': now,
                     'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
-                })
+                }))
                 await broadcast_event('rounds', round_id)
 
             if number is None:
                 continue
 
             # ── SERVER-SIDE WINNER CHECK ──
-            round_doc = db.collection('rounds').document(round_id).get()
+            round_doc = await _db(lambda: db.collection('rounds').document(round_id).get())
             if not round_doc.exists:
                 return
             rd_after = round_doc.to_dict()
@@ -352,7 +359,9 @@ async def _game_loop(round_id: str):
                         await engine.end_round(round_id, [int(w) for w in winners])
                     except Exception as e:
                         logger.error(f"[GameLoop] Error distributing prizes: {e}")
-                    db.collection('rounds').document(round_id).update({'payout_processed': True})
+                await _db(lambda: db.collection('rounds').document(round_id).update({'payout_processed': True}))
+                await broadcast_event('rounds', round_id)
+                logger.info(f"[GameLoop] ROUND COMPLETE {round_id}: winner={winner_id} cartela={winning_cartela} calls={len(called_now)} reason={completion_reason} natural_winners={len(winner_entries)}")
                 return
 
             called_now = rd_after.get('called_numbers', [])
@@ -377,7 +386,7 @@ async def _game_loop(round_id: str):
                 winning_cartela = int(chosen_winner.get('cartela_number', 0))
                 prize_per_winner = total_prize
                 winner_name = players.get(winner_id, {}).get('name', 'Player')
-                db.collection('rounds').document(round_id).update({
+                await _db(lambda: db.collection('rounds').document(round_id).update({
                     'status': 'completed',
                     'winners': [winner_id],
                     'winner_name': winner_name,
@@ -385,7 +394,7 @@ async def _game_loop(round_id: str):
                     'prize_per_winner': prize_per_winner,
                     'completion_reason': completion_reason,
                     'completed_at': now,
-                })
+                }))
                 await broadcast_event('rounds', round_id)
                 try:
                     await engine.end_round(round_id, [int(winner_id)])
@@ -394,33 +403,33 @@ async def _game_loop(round_id: str):
                 for uid in set(list(players.keys()) + [winner_id]):
                     try: await broadcast_event('users', str(uid))
                     except: pass
-                db.collection('rounds').document(round_id).update({'payout_processed': True})
-                await broadcast_event('rounds', round_id)
-                logger.info(f"[GameLoop] ROUND COMPLETE {round_id}: winner={winner_id} cartela={winning_cartela} calls={len(called_now)} reason={completion_reason} natural_winners={len(winner_entries)}")
+                await _db(lambda: db.collection('rounds').document(round_id).update({'payout_processed': True}))
                 return
 
             if completion_reason == 'no_winner_max_30':
                 now = datetime.now(tz=timezone.utc)
                 logger.info(f"[GameLoop] No real winner for {round_id} after {len(called_now)} calls — ending with no winner")
-                for uid_str in players:
-                    user_ref = db.collection('users').document(uid_str)
-                    user_doc = user_ref.get()
-                    if user_doc.exists:
-                        ud = user_doc.to_dict()
-                        user_ref.update({
-                            'losses': ud.get('losses', 0) + 1,
-                            'is_playing': False,
-                            'updated_at': now,
-                        })
-                db.collection('rounds').document(round_id).update({
-                    'status': 'completed',
-                    'winners': [],
-                    'winner_name': 'No winner',
-                    'prize_per_winner': 0,
-                    'admin_profit': 0,
-                    'payout_processed': True,
-                    'completed_at': now,
-                })
+                def _end_no_winner():
+                    for uid_str in players:
+                        user_ref = db.collection('users').document(uid_str)
+                        user_doc = user_ref.get()
+                        if user_doc.exists:
+                            ud = user_doc.to_dict()
+                            user_ref.update({
+                                'losses': ud.get('losses', 0) + 1,
+                                'is_playing': False,
+                                'updated_at': now,
+                            })
+                    db.collection('rounds').document(round_id).update({
+                        'status': 'completed',
+                        'winners': [],
+                        'winner_name': 'No winner',
+                        'prize_per_winner': 0,
+                        'admin_profit': 0,
+                        'payout_processed': True,
+                        'completed_at': now,
+                    })
+                await _db(_end_no_winner)
                 await broadcast_event('rounds', round_id)
                 return
 
@@ -445,8 +454,9 @@ async def start_background_monitor():
     """Startup: ensures system docs exist, monitors rounds, broadcasts WS events."""
     # Ensure admin_status document exists (prevents 404 on onSnapshot)
     try:
-        if not db.collection('system').document('admin_status').get().exists:
-            db.collection('system').document('admin_status').set({'online': False})
+        status_doc = await _db(lambda: db.collection('system').document('admin_status').get())
+        if not status_doc.exists:
+            await _db(lambda: db.collection('system').document('admin_status').set({'online': False}))
     except Exception:
         pass
 
@@ -1438,9 +1448,6 @@ async def broadcast_event(collection: str, doc_id: str):
     def _read_doc():
         return db.collection(collection).document(doc_id).get()
 
-    def _read_all():
-        return db.collection(collection).get()
-
     snap = await asyncio.to_thread(_read_doc)
     payload = {
         "type": "snapshot",
@@ -1451,11 +1458,12 @@ async def broadcast_event(collection: str, doc_id: str):
     }
     await sio.emit('snapshot', payload, room=room_exact)
 
-    docs = await asyncio.to_thread(_read_all)
+    # For collection-level listeners, only send the changed doc
+    # (client maintains local state from individual snapshots)
     query_payload = {
         "type": "query_snapshot",
         "collection": collection,
-        "docs": [{"id": d.id, "data": d.to_dict()} for d in docs]
+        "docs": [{"id": doc_id, "data": snap.to_dict() if snap.exists else None}]
     }
     await sio.emit('query_snapshot', query_payload, room=room_collection)
 
@@ -1477,7 +1485,7 @@ async def broadcast_cartelas_update():
 
 async def broadcast_cartela_pool(round_id: str):
     """Emit real-time cartela pool update to all clients watching this round."""
-    round_snap = db.collection('rounds').document(round_id).get()
+    round_snap = await asyncio.to_thread(lambda: db.collection('rounds').document(round_id).get())
     if round_snap.exists:
         rd = round_snap.to_dict()
         await sio.emit('cartela_pool', {
@@ -1494,13 +1502,8 @@ async def _event_broadcast_loop():
     """Poll system_events table and push Socket.IO updates to subscribed clients."""
     last_id = ""
     while True:
-        sess = None
         try:
-            sess = SessionLocal()
-            events = sess.query(SystemEvent)
-            if last_id:
-                events = events.filter(SystemEvent.id > last_id)
-            events = events.order_by(SystemEvent.created_at).limit(50).all()
+            events = await asyncio.to_thread(_fetch_events, last_id)
             for ev in events:
                 last_id = ev.id
                 try:
@@ -1509,10 +1512,19 @@ async def _event_broadcast_loop():
                     logger.warning(f"Error broadcasting event {ev.collection}/{ev.doc_id}: {ev_err}")
         except Exception as e:
             logger.warning(f"Error in event broadcast loop: {e}")
-        finally:
-            if sess:
-                sess.close()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1.0)
+
+
+def _fetch_events(last_id: str):
+    """Synchronous: query SystemEvent table for new events."""
+    sess = SessionLocal()
+    try:
+        events = sess.query(SystemEvent)
+        if last_id:
+            events = events.filter(SystemEvent.id > last_id)
+        return events.order_by(SystemEvent.created_at).limit(50).all()
+    finally:
+        sess.close()
 
 
 # (startup merged into start_background_monitor above)

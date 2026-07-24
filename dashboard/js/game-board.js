@@ -81,7 +81,7 @@ function startGameCountdown(nextMs) {
         if (remaining <= 0) {
             stopGameCountdown();
         }
-    }, 200);
+    }, 1000);
 }
 
 function stopGameCountdown() {
@@ -219,17 +219,26 @@ function addCalledNumberTag(num) {
 
 function autoMarkAllCartelas(num) {
     if (!autoMarkEnabled) return;
-    var gridIds = ['cartela-grid-1', 'cartela-grid-2'];
-    for (var gi = 0; gi < gridIds.length; gi++) {
-        var grid = document.getElementById(gridIds[gi]);
-        if (!grid) continue;
-        grid.querySelectorAll('.cartela-cell').forEach(function(cell) {
+    var grids = _autoMarkGrids;
+    if (!grids) {
+        grids = ['cartela-grid-1', 'cartela-grid-2'].map(function(id) {
+            var g = document.getElementById(id);
+            return g ? g.querySelectorAll('.cartela-cell') : null;
+        });
+        _autoMarkGrids = grids;
+    }
+    for (var gi = 0; gi < grids.length; gi++) {
+        var cells = grids[gi];
+        if (!cells) continue;
+        for (var ci = 0; ci < cells.length; ci++) {
+            var cell = cells[ci];
             if (parseInt(cell.dataset.num) === num && !cell.classList.contains('marked')) {
                 markCartelaCell(cell, num);
             }
-        });
+        }
     }
 }
+var _autoMarkGrids = null;
 
 function toggleAutoMark() {
     autoMarkEnabled = !autoMarkEnabled;

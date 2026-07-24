@@ -27,7 +27,7 @@
             console.warn('[Kelem Bingo] Socket.IO library not loaded (CDN failed). Real-time updates disabled.');
         } else if (API_BASE && API_BASE !== 'null' && API_BASE !== 'about:' && API_BASE !== 'about:blank' && API_BASE !== '') {
             socket = io(API_BASE, {
-                transports: ['polling'],
+                transports: ['websocket', 'polling'],
                 reconnection: true,
                 reconnectionDelay: 1000,
                 reconnectionAttempts: Infinity,

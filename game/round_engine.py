@@ -426,11 +426,15 @@ class RoundEngine:
         tier = [c for c in candidates if c['missing'] == min_missing]
         return random.choice(tier)
 
+    async def _db(self, call):
+        """Run a sync DB call in a thread to avoid blocking the event loop."""
+        return await asyncio.to_thread(call)
+
     async def call_number(self, round_id: str) -> Optional[int]:
         """Call the next number for the round.
         Phase 1 (calls 1-15): random safe numbers, avoid any winner.
         Phase 2 (calls 16+): target a winner and complete their pattern."""
-        round_doc = self.rounds_ref.document(round_id).get()
+        round_doc = await self._db(lambda: self.rounds_ref.document(round_id).get())
         if not round_doc.exists:
             return None
 
@@ -450,7 +454,7 @@ class RoundEngine:
         player_cartelas = self.build_player_cartelas(players)
 
         if data.get('game_target') != game_target:
-            self.rounds_ref.document(round_id).update({'game_target': game_target})
+            await self._db(lambda: self.rounds_ref.document(round_id).update({'game_target': game_target}))
 
         number = available[0]
 
@@ -459,9 +463,9 @@ class RoundEngine:
         if not target_winner:
             target_winner = self._select_predetermined_winner(player_cartelas)
             if target_winner:
-                self.rounds_ref.document(round_id).update({
+                await self._db(lambda: self.rounds_ref.document(round_id).update({
                     'target_winner': target_winner,
-                })
+                }))
 
         winning_pattern = set(target_winner.get('pattern', [])) if target_winner else set()
 
@@ -532,12 +536,12 @@ class RoundEngine:
 
         called.append(number)
         now = datetime.now(tz=timezone.utc)
-        self.rounds_ref.document(round_id).update({
+        await self._db(lambda: self.rounds_ref.document(round_id).update({
             'called_numbers': called,
             'last_called_number': number,
             'last_called_at': now,
             'next_number_at': now + timedelta(seconds=NUMBER_CALL_INTERVAL),
-        })
+        }))
         return number
 
     def get_cartela_patterns(self, flat_cartela: List[int]) -> List[List[int]]:
@@ -593,79 +597,78 @@ class RoundEngine:
 
     async def end_round(self, round_id: str, winner_ids: List[int]) -> dict:
         """End the round, distribute prizes."""
-        round_doc = self.rounds_ref.document(round_id).get()
-        if not round_doc.exists:
-            return {'error': 'Round not found'}
+        def _end_sync():
+            round_doc = self.rounds_ref.document(round_id).get()
+            if not round_doc.exists:
+                return {'error': 'Round not found'}
 
-        data = round_doc.to_dict()
-        if data['status'] not in ('playing', 'completed'):
-            return {'error': 'Round not in a valid state for ending'}
+            data = round_doc.to_dict()
+            if data['status'] not in ('playing', 'completed'):
+                return {'error': 'Round not in a valid state for ending'}
 
-        player_count = data.get('player_count', 0)
-        round_stake = data.get('stake', DEFAULT_STAKE)
-        total_pool = player_count * round_stake
-        derash = total_pool * 0.75
-        admin_profit = total_pool * 0.25
+            player_count = data.get('player_count', 0)
+            round_stake = data.get('stake', DEFAULT_STAKE)
+            total_pool = player_count * round_stake
+            derash = total_pool * 0.75
+            admin_profit = total_pool * 0.25
 
-        prize_per_winner = 0
-        if winner_ids:
-            prize_per_winner = derash / len(winner_ids)
-            # Credit each winner
+            prize_per_winner = 0
+            if winner_ids:
+                prize_per_winner = derash / len(winner_ids)
+                for wid in winner_ids:
+                    user_ref = self.db.collection('users').document(str(wid))
+                    user_doc = user_ref.get()
+                    if user_doc.exists:
+                        ud = user_doc.to_dict()
+                        user_ref.update({
+                            'play_wallet': ud.get('play_wallet', 0) + prize_per_winner,
+                            'wins': ud.get('wins', 0) + 1,
+                            'is_playing': False,
+                            'updated_at': datetime.now(tz=timezone.utc),
+                        })
+
+            for uid_str in data.get('players', {}):
+                try:
+                    uid_int = int(uid_str)
+                except ValueError:
+                    continue
+                if uid_int not in winner_ids:
+                    user_ref = self.db.collection('users').document(uid_str)
+                    user_doc = user_ref.get()
+                    if user_doc.exists:
+                        ud = user_doc.to_dict()
+                        user_ref.update({
+                            'losses': ud.get('losses', 0) + 1,
+                            'is_playing': False,
+                            'updated_at': datetime.now(tz=timezone.utc),
+                        })
+
+            winner_names = []
             for wid in winner_ids:
                 user_ref = self.db.collection('users').document(str(wid))
                 user_doc = user_ref.get()
                 if user_doc.exists:
-                    ud = user_doc.to_dict()
-                    user_ref.update({
-                        'play_wallet': ud.get('play_wallet', 0) + prize_per_winner,
-                        'wins': ud.get('wins', 0) + 1,
-                        'is_playing': False,
-                        'updated_at': datetime.now(tz=timezone.utc),
-                    })
+                    winner_names.append(user_doc.to_dict().get('first_name', 'Unknown'))
+                else:
+                    winner_names.append('Unknown')
 
-        # Mark all players as not playing
-        for uid_str in data.get('players', {}):
-            try:
-                uid_int = int(uid_str)
-            except ValueError:
-                continue
-            if uid_int not in winner_ids:
-                user_ref = self.db.collection('users').document(uid_str)
-                user_doc = user_ref.get()
-                if user_doc.exists:
-                    ud = user_doc.to_dict()
-                    user_ref.update({
-                        'losses': ud.get('losses', 0) + 1,
-                        'is_playing': False,
-                        'updated_at': datetime.now(tz=timezone.utc),
-                    })
+            self.rounds_ref.document(round_id).update({
+                'status': 'completed',
+                'winners': [str(w) for w in winner_ids],
+                'winner_name': winner_names[0] if len(winner_names) == 1 else ', '.join(winner_names),
+                'prize_per_winner': prize_per_winner,
+                'admin_profit': admin_profit,
+                'completed_at': datetime.now(tz=timezone.utc),
+            })
 
-        # Get winner names for spectator display
-        winner_names = []
-        for wid in winner_ids:
-            user_ref = self.db.collection('users').document(str(wid))
-            user_doc = user_ref.get()
-            if user_doc.exists:
-                winner_names.append(user_doc.to_dict().get('first_name', 'Unknown'))
-            else:
-                winner_names.append('Unknown')
+            return {
+                'status': 'completed',
+                'winners': winner_ids,
+                'prize_per_winner': prize_per_winner,
+                'admin_profit': admin_profit,
+            }
 
-        # Update round
-        self.rounds_ref.document(round_id).update({
-            'status': 'completed',
-            'winners': [str(w) for w in winner_ids],
-            'winner_name': winner_names[0] if len(winner_names) == 1 else ', '.join(winner_names),
-            'prize_per_winner': prize_per_winner,
-            'admin_profit': admin_profit,
-            'completed_at': datetime.now(tz=timezone.utc),
-        })
-
-        return {
-            'status': 'completed',
-            'winners': winner_ids,
-            'prize_per_winner': prize_per_winner,
-            'admin_profit': admin_profit,
-        }
+        return await asyncio.to_thread(_end_sync)
 
     async def get_round(self, round_id: str) -> Optional[dict]:
         """Get round data by ID."""

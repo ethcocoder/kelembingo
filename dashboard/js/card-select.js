@@ -1,6 +1,7 @@
 // ==================== HELPERS ====================
 var _originalPlayWallet = 0;
 var _lastPendingSelections = {};
+var _lastToggleTime = 0;
 
 function calcDerash(existingCartelas, mySelections, stake) {
     var totalCartelas = (existingCartelas || 0) + (mySelections || 0);
@@ -385,6 +386,9 @@ async function showCardSelection(roundId, roundData) {
 }
 
 function toggleCardSelection(num, cell) {
+    var now = Date.now();
+    if (_lastToggleTime && now - _lastToggleTime < 300) return;
+    _lastToggleTime = now;
     var idx = selectedCartelas.indexOf(num);
     var apiBase = window.API_BASE || window.location.origin;
     if (idx > -1) {

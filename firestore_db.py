@@ -5,7 +5,7 @@ import uuid
 import datetime
 import logging
 import sqlalchemy
-from sqlalchemy import create_engine, Column, String, Text, DateTime
+from sqlalchemy import create_engine, Column, String, Text, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -224,10 +224,77 @@ class CollectionRef:
         q._limit = n
         return q
 
+    def _build_sql_filter(self, field: str, op: str, val) -> tuple:
+        """Build a SQLAlchemy WHERE clause from a Firestore-style filter.
+        Returns (clause, params_dict) or (None, {}) if not convertible."""
+        # Convert dotted field to json_extract path: 'ocr.status' -> '$.ocr.status'
+        json_path = '$.' + field
+        extract = func.json_extract(FirestoreDocument.data, json_path)
+
+        op_map = {
+            '==': lambda col, v: col == v,
+            'equal': lambda col, v: col == v,
+            'equals': lambda col, v: col == v,
+            '!=': lambda col, v: col != v,
+            'not-equal': lambda col, v: col != v,
+            '>': lambda col, v: col > v,
+            'greater-than': lambda col, v: col > v,
+            '>=': lambda col, v: col >= v,
+            'greater-than-or-equal': lambda col, v: col >= v,
+            '<': lambda col, v: col < v,
+            'less-than': lambda col, v: col < v,
+            '<=': lambda col, v: col <= v,
+            'less-than-or-equal': lambda col, v: col <= v,
+            'in': lambda col, v: col.in_(v),
+            'array-contains': None,  # needs special handling
+        }
+
+        if op == 'array-contains':
+            # json_each for array containment — fall back to Python filter
+            return None, {}
+
+        maker = op_map.get(op)
+        if maker is None:
+            return None, {}
+
+        # Handle type coercion — extract returns text, cast for numeric comparisons
+        # SQLite's json_extract returns typed values for numbers/booleans
+        clause = maker(extract, val)
+        return clause, {}
+
     def _execute_query(self):
         sess = self._session or SessionLocal()
         try:
-            db_docs = sess.query(FirestoreDocument).filter(FirestoreDocument.collection == self.collection_name).all()
+            query = sess.query(FirestoreDocument).filter(
+                FirestoreDocument.collection == self.collection_name
+            )
+
+            # Apply SQL-level filters where possible
+            python_filters = []
+            for field, op, val in self._filters:
+                clause, _ = self._build_sql_filter(field, op, val)
+                if clause is not None:
+                    query = query.filter(clause)
+                else:
+                    # Fall back to Python-side filter
+                    python_filters.append((field, op, val))
+
+            # Apply ordering at SQL level if possible
+            if self._order_by:
+                field, direction = self._order_by
+                json_path = '$.' + field
+                extract = func.json_extract(FirestoreDocument.data, json_path)
+                if "DESC" in str(direction).upper():
+                    query = query.order_by(extract.desc())
+                else:
+                    query = query.order_by(extract.asc())
+
+            # Apply limit at SQL level
+            if self._limit is not None:
+                query = query.limit(self._limit)
+
+            db_docs = query.all()
+
             docs = []
             for db_doc in db_docs:
                 try:
@@ -236,64 +303,34 @@ class CollectionRef:
                     data = {}
                 docs.append(DocumentSnapshot(db_doc.doc_id, data, exists=True))
 
-            # Apply filters dynamically in Python
-            filtered_docs = []
-            for doc in docs:
-                match = True
-                data = doc.to_dict()
-                for field, op, val in self._filters:
-                    # Support dotted field notation (e.g. 'ocr.status')
-                    doc_val = data
-                    for part in field.split('.'):
-                        if isinstance(doc_val, dict):
-                            doc_val = doc_val.get(part)
+            # Apply any remaining Python-side filters (array-contains etc.)
+            if python_filters:
+                filtered_docs = []
+                for doc in docs:
+                    match = True
+                    doc_data = doc.to_dict()
+                    for field, op, val in python_filters:
+                        doc_val = doc_data
+                        for part in field.split('.'):
+                            if isinstance(doc_val, dict):
+                                doc_val = doc_val.get(part)
+                            else:
+                                doc_val = None
+                                break
+                        if op == 'array-contains':
+                            if not isinstance(doc_val, list) or val not in doc_val:
+                                match = False
                         else:
-                            doc_val = None
-                            break
+                            # Re-check with Python comparison
+                            if op in ['==', 'equal', 'equals']:
+                                if doc_val != val: match = False
+                            elif op in ['!=', 'not-equal']:
+                                if doc_val == val: match = False
+                    if match:
+                        filtered_docs.append(doc)
+                docs = filtered_docs
 
-                    if op in ['==', 'equal', 'equals']:
-                        if doc_val != val: match = False
-                    elif op in ['!=', 'not-equal']:
-                        if doc_val == val: match = False
-                    elif op in ['>', 'greater-than']:
-                        if doc_val is None or not (doc_val > val): match = False
-                    elif op in ['>=', 'greater-than-or-equal']:
-                        if doc_val is None or not (doc_val >= val): match = False
-                    elif op in ['<', 'less-than']:
-                        if doc_val is None or not (doc_val < val): match = False
-                    elif op in ['<=', 'less-than-or-equal']:
-                        if doc_val is None or not (doc_val <= val): match = False
-                    elif op in ['in']:
-                        if doc_val not in val: match = False
-                    elif op in ['array-contains']:
-                        if not isinstance(doc_val, list) or val not in doc_val: match = False
-                if match:
-                    filtered_docs.append(doc)
-
-            # Apply ordering
-            if self._order_by:
-                field, direction = self._order_by
-                desc = "DESC" in str(direction).upper()
-
-                def sort_key(doc):
-                    val = doc.to_dict()
-                    for part in field.split('.'):
-                        if isinstance(val, dict):
-                            val = val.get(part)
-                        else:
-                            val = None
-                            break
-                    if val is None:
-                        return ""
-                    return val
-
-                filtered_docs.sort(key=sort_key, reverse=desc)
-
-            # Apply limit
-            if self._limit is not None:
-                filtered_docs = filtered_docs[:self._limit]
-
-            return filtered_docs
+            return docs
         finally:
             if not self._session:
                 sess.close()
