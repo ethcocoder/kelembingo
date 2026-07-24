@@ -37,7 +37,10 @@ logger = logging.getLogger(__name__)
 BACKUP_BOT_TOKEN = "8676053372:AAGVEvGAHBAvselQJDSD9MKqFxM6r7eVmgA"
 
 # The backup is sent to the admin's chat with the backup bot.
-BACKUP_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0") or "0")
+# For reliable pinning, create a Telegram GROUP, add @kelembackupbot as admin,
+# get the group's chat ID (negative number), and set BACKUP_CHAT_ID env var.
+# Falls back to ADMIN_CHAT_ID (private chat — pinning may not work).
+BACKUP_CHAT_ID = int(os.getenv("BACKUP_CHAT_ID") or os.getenv("ADMIN_CHAT_ID", "0") or "0")
 
 _API = f"https://api.telegram.org/bot{BACKUP_BOT_TOKEN}"
 _FILE_API = f"https://api.telegram.org/file/bot{BACKUP_BOT_TOKEN}"
@@ -154,6 +157,7 @@ def _pinned_document():
     """Return the pinned message's document dict, or None."""
     _require_chat()
     chat = _call("getChat", data={"chat_id": BACKUP_CHAT_ID})
+    logger.info(f"Backup chat id={chat.get('id')} type={chat.get('type')} pinned={'yes' if chat.get('pinned_message') else 'no'}")
     pinned = chat.get("pinned_message")
     if not pinned:
         return None, None

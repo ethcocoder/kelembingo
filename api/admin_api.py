@@ -1327,6 +1327,7 @@ def backup_status():
     import backup_common as bc
     status = bc.get_status()
     status["enabled"] = bool(bc.BACKUP_CHAT_ID)
+    status["chat_id"] = bc.BACKUP_CHAT_ID
     status["live_documents"] = bc.firestore_db.count_documents()
     return status
 
