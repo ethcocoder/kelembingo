@@ -45,7 +45,7 @@ async function playNow(stake) {
             myCartelas = {};
             calledNumbers = new Set();
             _previewCache = {};
-            var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+            var apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
             var createRes = await fetch(apiBase + '/api/rounds/create?stake=' + encodeURIComponent(stake), {
                 method: 'POST'
             });
@@ -390,7 +390,7 @@ function toggleCardSelection(num, cell) {
     if (_lastToggleTime && now - _lastToggleTime < 300) return;
     _lastToggleTime = now;
     var idx = selectedCartelas.indexOf(num);
-    var apiBase = window.API_BASE || window.location.origin;
+    var apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin;
     if (idx > -1) {
         selectedCartelas.splice(idx, 1);
         cell.className = 'card-tile';
@@ -662,7 +662,7 @@ async function confirmSelection() {
     showLoading('Joining round...');
 
     try {
-        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        var apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
         var res = await fetch(apiBase + '/api/rounds/' + currentRoundId + '/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

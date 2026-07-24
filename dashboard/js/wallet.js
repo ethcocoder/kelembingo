@@ -35,7 +35,7 @@ async function requestDeposit() {
     if (!currentUser) { showToast('Loading user data...'); return; }
     showLoading('Preparing deposit...');
     try {
-        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        var apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
         var res = await fetch(apiBase + '/api/deposits/config/' + encodeURIComponent(currentUser.id));
         var data = await res.json();
         if (!res.ok) {
@@ -98,7 +98,7 @@ async function submitDeposit() {
 
     showLoading('Submitting deposit...');
     try {
-        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        var apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
         var res = await fetch(apiBase + '/api/deposits/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -137,7 +137,7 @@ async function submitWithdrawal() {
     if (!amount || amount < 50) { showToast('Minimum withdrawal: 50 ETB'); return; }
     if (!phone) { showToast('Enter phone number'); return; }
     try {
-        const apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        const apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
         const valRes = await fetch(apiBase + '/api/validate-withdrawal/' + currentUser.id + '?amount=' + amount);
         const val = await valRes.json();
         if (!val.ok) {

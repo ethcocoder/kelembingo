@@ -419,7 +419,7 @@ function escHtml(str) {
 
 function seedBotContent() {
     if (!confirm('This will populate all bot messages with defaults. Existing customizations will be preserved. Continue?')) return;
-    var apiBase = window.API_BASE || '';
+    var apiBase = window.BACKEND_URL || window.API_BASE || '';
     fetch(apiBase + '/api/admin/bot-content/seed', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(data) {

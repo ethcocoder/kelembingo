@@ -359,6 +359,9 @@
     window.db = _firestore;
     window.auth = _auth;
 
+    // Expose API_BASE globally (admin scripts reference it directly)
+    window.API_BASE = API_BASE;
+
     // Expose socket for cartela pool real-time updates
     window._bingoSocket = socket;
 

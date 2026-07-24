@@ -29,7 +29,7 @@ var _timeSyncInterval = null;
 async function syncServerTime() {
     try {
         var before = Date.now();
-        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        var apiBase = window.BACKEND_URL || window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
         var res = await fetch(apiBase + '/api/time');
         var after = Date.now();
         var data = await res.json();
