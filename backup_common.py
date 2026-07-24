@@ -106,18 +106,22 @@ def create_backup() -> dict:
         files={"document": (filename, io.BytesIO(raw), "application/json")},
     )
 
-    # Pin the newest backup so restore can always find it; clear older pins first.
+    # Pin the newest backup so restore can always find it; clear the old pin first.
     message_id = result.get("message_id")
+    # Try to unpin the previous pinned message (fails gracefully in private chats)
     try:
-        _call("unpinAllChatMessages", data={"chat_id": BACKUP_CHAT_ID})
+        _call("unpinChatMessage", data={"chat_id": BACKUP_CHAT_ID})
+    except BackupError:
+        pass  # No previous pin or no permission — not critical
+    # Pin the new backup message
+    try:
         _call("pinChatMessage", data={
             "chat_id": BACKUP_CHAT_ID,
             "message_id": message_id,
             "disable_notification": True,
         })
     except BackupError as e:
-        # A failed pin is non-fatal for this backup, but restore relies on it.
-        logger.warning(f"Backup uploaded but could not be pinned: {e}")
+        logger.error(f"Backup uploaded to Telegram but could NOT be pinned — restore will fail: {e}")
 
     meta["message_id"] = message_id
     meta["file_size"] = len(raw)
@@ -206,10 +210,10 @@ def restore_latest(overwrite: bool = False) -> dict:
 
 
 def wipe_pinned_backup() -> dict:
-    """Unpin all backup messages from the backup bot chat so nothing can be restored."""
+    """Unpin the current backup message from the backup bot chat."""
     _require_chat()
     try:
-        _call("unpinAllChatMessages", data={"chat_id": BACKUP_CHAT_ID})
+        _call("unpinChatMessage", data={"chat_id": BACKUP_CHAT_ID})
         return {"ok": True}
     except BackupError as e:
         raise BackupError(f"Failed to wipe pinned backup: {e}")
