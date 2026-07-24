@@ -106,26 +106,38 @@ def create_backup() -> dict:
         files={"document": (filename, io.BytesIO(raw), "application/json")},
     )
 
-    # Pin the newest backup so restore can always find it; clear the old pin first.
+    # Pin the backup in Telegram so restore can find it
     message_id = result.get("message_id")
-    # Try to unpin the previous pinned message (fails gracefully in private chats)
+    pin_ok = False
+    # Remove any previous pin first (fails silently if none)
     try:
         _call("unpinChatMessage", data={"chat_id": BACKUP_CHAT_ID})
-    except BackupError:
-        pass  # No previous pin or no permission — not critical
-    # Pin the new backup message
+    except Exception:
+        pass
+    # Pin the new message
     try:
         _call("pinChatMessage", data={
             "chat_id": BACKUP_CHAT_ID,
             "message_id": message_id,
             "disable_notification": True,
         })
-    except BackupError as e:
-        logger.error(f"Backup uploaded to Telegram but could NOT be pinned — restore will fail: {e}")
+        # Verify the pin actually took effect
+        chat = _call("getChat", data={"chat_id": BACKUP_CHAT_ID})
+        pinned_msg = (chat.get("pinned_message") or {}).get("message_id")
+        if pinned_msg == message_id:
+            pin_ok = True
+        else:
+            logger.error(f"Pin verification failed: expected pinned message_id={message_id}, got pinned_msg={pinned_msg}. Chat: id={chat.get('id')}, type={chat.get('type')}")
+    except Exception as e:
+        logger.error(f"Backup uploaded to Telegram but pin failed: {e}. Chat id={BACKUP_CHAT_ID}, message_id={message_id}")
+    if not pin_ok:
+        logger.warning("Backup NOT pinned — restore will not find it automatically. "
+                       "The backup file is still in the chat, but restore needs a pinned message.")
 
+    meta["pinned"] = pin_ok
     meta["message_id"] = message_id
     meta["file_size"] = len(raw)
-    logger.info(f"Backup created: {meta['documents']} records, {len(raw)} bytes")
+    logger.info(f"Backup created: {meta['documents']} records, {len(raw)} bytes (pinned={pin_ok})")
     return meta
 
 
