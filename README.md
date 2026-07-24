@@ -1,6 +1,7 @@
 # Kelem Bingo
 
 Real-time multiplayer Telegram Bingo platform. Players open a Telegram Mini App
+Data is backed up to @kelembackupbot and auto-restored on deploy.
 to join rounds, pick cartelas, and watch numbers called live. Admins manage
 deposits, withdrawals, players, and bot content from a web dashboard.
 
@@ -380,6 +381,7 @@ events), mirroring Firestore's `onSnapshot`.
   two different bots; `config.py` logs a critical error if they match.
 - **Data disappears after deploy** — expected on ephemeral disks; enable the
   backup bot or use a managed `DATABASE_URL`. See [Backup](#data-backup--restore).
+- **Backup not pinned** — check Render logs for `pin failed` or `verification failed` messages; ensure `ADMIN_CHAT_ID` matches the admin user who pressed Start on `@kelembackupbot`.
 - **Backups disabled** — press Start on `@kelembackupbot` and set `ADMIN_CHAT_ID`.
 - **Support replies not routing** — ensure `ADMIN_CHAT_ID` is set and the admin
   has started the admin support bot.
