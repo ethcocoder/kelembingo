@@ -55,6 +55,7 @@ def run_backup_scheduler():
     import time
     try:
         import backup_common as bc
+        import firestore_db
     except Exception as e:
         logger.error(f"Backup scheduler import error: {e}", exc_info=True)
         return
@@ -64,13 +65,18 @@ def run_backup_scheduler():
         logger.warning("ADMIN_CHAT_ID not set — automatic backups are disabled.")
         return
 
+    # Small delay to let DB initialize, then create an immediate backup
+    time.sleep(5)
     while True:
-        time.sleep(interval)
         try:
-            meta = bc.create_backup()
-            logger.info(f"⏱️ Auto-backup: {meta.get('documents')} records saved.")
+            if firestore_db.count_documents() > 0:
+                meta = bc.create_backup()
+                logger.info(f"Auto-backup: {meta.get('documents')} records saved.")
+            else:
+                logger.info("Auto-backup skipped: no documents to back up.")
         except Exception as e:
             logger.warning(f"Auto-backup failed (will retry next cycle): {e}")
+        time.sleep(interval)
 
 
 def auto_restore_on_startup():
