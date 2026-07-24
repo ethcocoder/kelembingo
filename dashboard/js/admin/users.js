@@ -53,8 +53,7 @@ function renderUsersTable() {
                 '<td class="px-4 py-3"><span class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ' + statusClass + '"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>' + status + '</span></td>' +
                 '<td class="px-4 py-3"><div class="flex items-center gap-1">' +
                 '<button onclick="viewUser(\'' + escHtml(docId) + '\')" class="p-1.5 rounded-lg hover:bg-white/5 transition-all" title="View"><span class="text-sm">👁️</span></button>' +
-                var walletRaw = typeof u.play_wallet === 'object' ? (u.play_wallet.value || 0) : (u.play_wallet || 0);
-                '<button onclick="openEditBalance(\'' + escHtml(docId) + '\',\'' + escHtml(name) + '\',' + walletRaw + ')" class="p-1.5 rounded-lg hover:bg-white/5 transition-all" title="Edit Balance"><span class="text-sm">💰</span></button>' +
+                '<button onclick="openEditBalance(\'' + escHtml(docId) + '\',\'' + escHtml(name) + '\',' + walletVal + ')" class="p-1.5 rounded-lg hover:bg-white/5 transition-all" title="Edit Balance"><span class="text-sm">💰</span></button>' +
                 '<button onclick="toggleBanUser(\'' + escHtml(docId) + '\',\'' + escHtml(status) + '\')" class="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Ban/Unban"><span class="text-sm">' + (status === 'banned' ? '✅' : '🚫') + '</span></button>' +
                 '<button onclick="requestDeleteUser(\'' + escHtml(docId) + '\',\'' + escHtml(name) + '\')" class="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Delete"><span class="text-sm">🗑️</span></button>' +
                 '</div></td>' +
@@ -86,14 +85,14 @@ function viewUser(docId) {
     var games = u.total_games || u.games_played || 0;
     var wins = u.wins || 0;
     var winRate = games > 0 ? ((wins / games) * 100).toFixed(1) : '0.0';
+    var bal = typeof u.play_wallet === 'object' ? Number(u.play_wallet.value || 0) : Number(u.play_wallet || 0);
     content.innerHTML =
         '<div class="flex items-center gap-4 mb-4">' +
         '<div class="w-14 h-14 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center text-xl font-bold">' + name.charAt(0).toUpperCase() + '</div>' +
         '<div><p class="text-lg font-bold">' + escHtml(name) + '</p><p class="text-sm text-gray-400">@' + escHtml(u.username || 'no_username') + '</p></div>' +
         '</div>' +
         '<div class="grid grid-cols-2 gap-3">' +
-        var _b = typeof u.play_wallet === 'object' ? (u.play_wallet.value || 0) : (u.play_wallet || 0);
-        '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#10B981]">' + Number(_b).toFixed(2) + '</p><p class="text-[10px] text-gray-500">Balance (ETB)</p></div>' +
+        '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#10B981]">' + bal.toFixed(2) + '</p><p class="text-[10px] text-gray-500">Balance (ETB)</p></div>' +
         '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#3B82F6]">' + games + '</p><p class="text-[10px] text-gray-500">Games Played</p></div>' +
         '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#FF8C00]">' + wins + '</p><p class="text-[10px] text-gray-500">Wins</p></div>' +
         '<div class="glass rounded-xl p-3 text-center"><p class="text-lg font-bold text-[#8B5CF6]">' + winRate + '%</p><p class="text-[10px] text-gray-500">Win Rate</p></div>' +
