@@ -471,6 +471,8 @@ async def _game_loop(round_id: str):
 
 def _start_game_loop(round_id: str):
     """Start a background game loop for a round if one isn't already running."""
+    if os.environ.get("RENDER_API_ONLY"):
+        return  # Dedicated engine services handle game loops
     if round_id in _active_game_tasks:
         return  # already running
     task = asyncio.create_task(_game_loop(round_id))

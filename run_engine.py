@@ -52,7 +52,7 @@ async def main():
                 if r.get('status') == 'selecting':
                     await _handle_selection(rid, r, engine)
                 elif r.get('status') == 'playing':
-                    await _call_next_number(rid, r, engine)
+                    await _call_next_number(rid, r, engine, gateway)
 
         except Exception as e:
             logger.error(f"Engine error: {e}", exc_info=True)
@@ -90,8 +90,8 @@ async def _handle_selection(round_id: str, data: dict, engine):
     logger.info(f"Round {round_id} started: {len(players)} players, stake {data.get('stake')} ETB")
 
 
-async def _call_next_number(round_id: str, data: dict, engine):
-    """Call next number if it's time."""
+async def _call_next_number(round_id: str, data: dict, engine, gateway):
+    """Call next number if it's time. After each call, check for a single winner and end round."""
     from datetime import datetime, timezone
 
     next_at = data.get('next_number_at')
@@ -108,8 +108,56 @@ async def _call_next_number(round_id: str, data: dict, engine):
         number = await engine.call_number(round_id)
         if number is not None:
             logger.info(f"Round {round_id}: called #{number}")
+        else:
+            return
     except Exception as e:
         logger.error(f"Round {round_id}: call_number failed: {e}")
+        return
+
+    # Re-read round after calling to check for winners
+    try:
+        snap = gateway.collection('rounds').document(round_id).get()
+        if not snap.exists:
+            return
+        rd = snap.to_dict()
+        if rd.get('status') != 'playing':
+            return
+
+        called_now = rd.get('called_numbers', [])
+        players = rd.get('players', {}) or {}
+
+        if not players:
+            gateway.collection('rounds').document(round_id).update({
+                'status': 'completed',
+                'winners': [],
+                'winner_name': 'No players',
+                'completed_at': datetime.now(tz=timezone.utc).isoformat(),
+            })
+            return
+
+        MAX_CALLS = 30
+        player_cartelas = engine.build_player_cartelas(players)
+        winner_entries = engine.evaluate_winners(player_cartelas, called_now)
+
+        if winner_entries:
+            chosen_winner = engine.choose_single_winner(winner_entries, players)
+            if chosen_winner:
+                winner_id = int(chosen_winner['user_id'])
+                await engine.end_round(round_id, [winner_id])
+                logger.info(f"Round {round_id}: single winner={chosen_winner.get('user_id')} cartela={chosen_winner.get('cartela_number')} after {len(called_now)} calls")
+                return
+
+        if len(called_now) >= MAX_CALLS:
+            gateway.collection('rounds').document(round_id).update({
+                'status': 'completed',
+                'winners': [],
+                'winner_name': 'No winner',
+                'completed_at': datetime.now(tz=timezone.utc).isoformat(),
+            })
+            logger.info(f"Round {round_id}: no winner after {len(called_now)} calls")
+            return
+    except Exception as e:
+        logger.error(f"Round {round_id}: winner check failed: {e}", exc_info=True)
 
 
 async def run_health_server():
