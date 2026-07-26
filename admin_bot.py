@@ -9,8 +9,17 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from config import db
-import firestore_db as firestore
+# ── Database: direct MockFirestoreClient or Gateway HTTP client ──
+if os.getenv("USE_GATEWAY"):
+    from gateway_client import GatewayClient, FieldFilter, Increment, ArrayUnion, ArrayRemove
+    from gateway_client import transactional
+    import gateway_client as firestore
+    db = GatewayClient()
+    logger.info("Admin bot using Gateway HTTP client")
+else:
+    from config import db
+    import firestore_db as firestore
+    from firestore_db import FieldFilter, Increment, ArrayUnion, ArrayRemove, transactional
 from handlers.bot_content import get_bot_text
 
 ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN", "")

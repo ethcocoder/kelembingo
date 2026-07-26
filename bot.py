@@ -15,7 +15,7 @@ from telegram.ext import (
     ConversationHandler, ContextTypes, filters,
 )
 from config import (
-    db, BOT_TOKEN, ADMIN_CHAT_ID, ADMIN_BOT_TOKEN,
+    BOT_TOKEN, ADMIN_CHAT_ID, ADMIN_BOT_TOKEN,
     DEFAULT_STAKE_10, DEFAULT_STAKE_20,
     SUPPORT_USERNAME, REFERRAL_BONUS, BONUS_TO_ETB_RATE, MIN_WITHDRAW, MAX_WITHDRAW,
     TELEBIRR_NUMBER,
@@ -23,7 +23,17 @@ from config import (
 from telegram import Bot
 from handlers.user_manager import UserManager
 from handlers.bot_content import get_bot_text, invalidate_cache, get_config_value
-from firestore_db import FieldFilter, Increment
+
+# ── Database: direct MockFirestoreClient or Gateway HTTP client ──
+if os.getenv("USE_GATEWAY"):
+    from gateway_client import GatewayClient, FieldFilter, Increment
+    db = GatewayClient()
+    logger = logging.getLogger(__name__)
+    logger.info("Bot using Gateway HTTP client")
+else:
+    from config import db as _db
+    from firestore_db import FieldFilter, Increment
+    db = _db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
