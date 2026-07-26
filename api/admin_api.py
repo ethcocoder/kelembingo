@@ -12,7 +12,7 @@ from typing import List, Optional
 import json
 import datetime
 from config import db, BOT_TOKEN
-from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFilter, Increment, ArrayUnion
+from firestore_db import MockFirestoreClient, SessionLocal, SystemEvent, FieldFilter, Increment, ArrayUnion, ArrayRemove
 
 from game.round_engine import RoundEngine, DEFAULT_STAKE, VALID_STAKES, SELECTION_DURATION, GAME_LENGTH_RANGE
 from handlers.user_manager import UserManager
@@ -1398,6 +1398,26 @@ def _normalize_doc(data: dict) -> dict:
     return data
 
 
+def _deserialize_field_value(data: dict) -> dict:
+    """Convert JSON-safe __type dicts back to Firestore FieldValue objects.
+    
+    Used in generic /api/db/ endpoints so bot services can send
+    Increment/ArrayUnion over HTTP.
+    """
+    if not isinstance(data, dict):
+        return data
+    if '__type' in data and 'value' in data:
+        t = data['__type']
+        v = data['value']
+        if t == 'increment':
+            return Increment(v)
+        if t == 'array_union':
+            return ArrayUnion(v)
+        if t == 'array_remove':
+            return ArrayRemove(v)
+    return {k: _deserialize_field_value(v) for k, v in data.items()}
+
+
 class DocSetRequest(BaseModel):
     data: dict
     merge: bool = False
@@ -1422,7 +1442,9 @@ async def db_get_doc(collection: str, doc_id: str):
 
 @app.post("/api/db/{collection}/{doc_id}")
 async def db_set_doc(collection: str, doc_id: str, req: DocSetRequest):
-    db.collection(collection).document(doc_id).set(req.data, merge=req.merge)
+    db.collection(collection).document(doc_id).set(
+        _deserialize_field_value(req.data), merge=req.merge
+    )
     await broadcast_event(collection, doc_id)
     return {"ok": True}
 
@@ -1430,7 +1452,9 @@ async def db_set_doc(collection: str, doc_id: str, req: DocSetRequest):
 @app.patch("/api/db/{collection}/{doc_id}")
 async def db_update_doc(collection: str, doc_id: str, req: DocUpdateRequest):
     try:
-        db.collection(collection).document(doc_id).update(req.data)
+        db.collection(collection).document(doc_id).update(
+            _deserialize_field_value(req.data)
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     await broadcast_event(collection, doc_id)
@@ -1468,7 +1492,7 @@ async def db_query_collection(
 
 @app.post("/api/db/{collection}")
 async def db_add_doc(collection: str, req: DocSetRequest):
-    ref = db.collection(collection).add(req.data)
+    ref = db.collection(collection).add(_deserialize_field_value(req.data))
     return {"id": ref.id}
 
 
