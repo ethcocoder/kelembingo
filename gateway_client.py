@@ -19,6 +19,7 @@ After the split, set GATEWAY_URL to the gateway's Render URL.
 import os
 import json
 import logging
+from datetime import datetime, date
 import httpx
 from firestore_db import Increment, ArrayUnion, ArrayRemove, FieldFilter
 
@@ -29,7 +30,7 @@ INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 
 def _scrub(data):
-    """Convert Increment/etc objects to JSON-safe __type dicts."""
+    """Convert non-JSON-safe objects (Increment, datetime, etc) to JSON-safe types."""
     if isinstance(data, dict):
         if hasattr(data, '_is_increment'):
             return {"__type": "increment", "value": data.value}
@@ -40,6 +41,10 @@ def _scrub(data):
         return {k: _scrub(v) for k, v in data.items()}
     if isinstance(data, list):
         return [_scrub(v) for v in data]
+    if isinstance(data, datetime):
+        return data.isoformat()
+    if isinstance(data, date):
+        return data.isoformat()
     return data
 
 
