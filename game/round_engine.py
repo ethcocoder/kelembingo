@@ -148,6 +148,7 @@ class RoundEngine:
             'player_count': 0,
             'taken_cartelas': [],
             'called_numbers': [],
+            'marked_numbers': {},  # uid -> [marked numbers]
             'winners': [],
             'prize_per_winner': 0,
             'admin_profit': 0,
@@ -684,3 +685,58 @@ class RoundEngine:
                 .limit(limit)
                 .get())
         return [{'id': doc.id, **doc.to_dict()} for doc in docs]
+
+    async def sync_marks(self, round_id: str, user_id: int, marked_numbers: List[int]) -> dict:
+        """Sync a player's marked numbers to the server."""
+        round_doc = self.rounds_ref.document(round_id).get()
+        if not round_doc.exists:
+            return {'error': 'Round not found'}
+
+        data = round_doc.to_dict()
+        if data['status'] not in ('selecting', 'playing'):
+            return {'error': 'Round not in active state'}
+
+        uid_str = str(user_id)
+        if uid_str not in data.get('players', {}):
+            return {'error': 'Player not in this round'}
+
+        # Validate marked numbers are in called_numbers
+        called = set(data.get('called_numbers', []))
+        valid_marked = [n for n in marked_numbers if n in called]
+
+        # Update marked_numbers for this player
+        self.rounds_ref.document(round_id).update({
+            f'marked_numbers.{uid_str}': valid_marked
+        })
+
+        return {'status': 'ok', 'marked': valid_marked}
+
+    async def check_bingo_for_player(self, round_id: str, user_id: int) -> dict:
+        """Check if a player has bingo using their marked numbers."""
+        round_doc = self.rounds_ref.document(round_id).get()
+        if not round_doc.exists:
+            return {'error': 'Round not found'}
+
+        data = round_doc.to_dict()
+        uid_str = str(user_id)
+        player_info = data.get('players', {}).get(uid_str)
+
+        if not player_info:
+            return {'error': 'Player not in round'}
+
+        # Get player's marked numbers
+        marked = data.get('marked_numbers', {}).get(uid_str, [])
+        called = data.get('called_numbers', [])
+
+        # Check bingo using marked numbers
+        for cartela_num in player_info.get('cartelas', []):
+            cartela_doc = self.master_ref.document(str(cartela_num)).get()
+            if not cartela_doc.exists:
+                continue
+            flat = cartela_doc.to_dict().get('cartela', [])
+            
+            # Use marked numbers to check bingo
+            if self.check_bingo_for_cartela(flat, marked):
+                return {'bingo': True, 'cartela': cartela_num, 'marked': marked}
+
+        return {'bingo': False, 'marked': marked}

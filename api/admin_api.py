@@ -712,6 +712,32 @@ async def unselect_cartela(round_id: str, req: SelectRequest):
     return result
 
 
+class SyncMarksRequest(BaseModel):
+    user_id: int
+    marked_numbers: List[int]
+
+
+@app.post("/api/rounds/{round_id}/sync-marks")
+async def sync_marks(round_id: str, req: SyncMarksRequest):
+    """Sync a player's marked numbers to the server."""
+    result = await engine.sync_marks(
+        round_id, req.user_id, req.marked_numbers
+    )
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    await broadcast_event('rounds', round_id)
+    return result
+
+
+@app.post("/api/rounds/{round_id}/check-bingo/{user_id}")
+async def check_bingo_player(round_id: str, user_id: int):
+    """Check if a player has bingo."""
+    result = await engine.check_bingo_for_player(round_id, user_id)
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    return result
+
+
 @app.post("/api/rounds/{round_id}/start")
 async def start_round(round_id: str):
     """Start the round (transition from selecting to playing)."""

@@ -4,7 +4,6 @@ function setupGameBoard() {
     const nums = Object.keys(myCartelas).map(Number);
     calledNumbers = new Set();
     _bingoDetected = false;
-    _autoMarkGrids = null;
     stopGameCountdown();
 
     var el;
@@ -82,7 +81,7 @@ function startGameCountdown(nextMs) {
         if (remaining <= 0) {
             stopGameCountdown();
         }
-    }, 1000);
+    }, 200);
 }
 
 function stopGameCountdown() {
@@ -188,6 +187,44 @@ function manualMark(cell, num) {
     if (cell.classList.contains('marked')) return;
     markCartelaCell(cell, num);
     playMarkSound();
+    // Sync marked numbers to server
+    _syncMarkedToServer();
+}
+
+var _markedNumbers = new Set();
+var _syncDebounce = null;
+
+function _syncMarkedToServer() {
+    // Collect all marked numbers from all cartelas
+    _markedNumbers.clear();
+    document.querySelectorAll('.cartela-cell.marked').forEach(function(cell) {
+        var n = parseInt(cell.dataset.num);
+        if (n > 0) _markedNumbers.add(n);
+    });
+    
+    // Debounce sync to server
+    if (_syncDebounce) clearTimeout(_syncDebounce);
+    _syncDebounce = setTimeout(function() {
+        _syncDebounce = null;
+        _sendMarksToServer();
+    }, 500);
+}
+
+async function _sendMarksToServer() {
+    if (!currentUser || !currentRoundId) return;
+    try {
+        var apiBase = window.API_BASE || window.location.origin || (window.location.protocol + '//' + window.location.host);
+        await fetch(apiBase + '/api/rounds/' + currentRoundId + '/sync-marks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                marked_numbers: Array.from(_markedNumbers)
+            })
+        });
+    } catch(e) {
+        console.error('Failed to sync marks:', e);
+    }
 }
 
 function highlightMasterNumber(num, isLast) {
@@ -220,26 +257,20 @@ function addCalledNumberTag(num) {
 
 function autoMarkAllCartelas(num) {
     if (!autoMarkEnabled) return;
-    var grids = _autoMarkGrids;
-    if (!grids) {
-        grids = ['cartela-grid-1', 'cartela-grid-2'].map(function(id) {
-            var g = document.getElementById(id);
-            return g ? g.querySelectorAll('.cartela-cell') : null;
-        });
-        _autoMarkGrids = grids;
-    }
-    for (var gi = 0; gi < grids.length; gi++) {
-        var cells = grids[gi];
-        if (!cells) continue;
-        for (var ci = 0; ci < cells.length; ci++) {
-            var cell = cells[ci];
+    var gridIds = ['cartela-grid-1', 'cartela-grid-2'];
+    var marked = false;
+    for (var gi = 0; gi < gridIds.length; gi++) {
+        var grid = document.getElementById(gridIds[gi]);
+        if (!grid) continue;
+        grid.querySelectorAll('.cartela-cell').forEach(function(cell) {
             if (parseInt(cell.dataset.num) === num && !cell.classList.contains('marked')) {
                 markCartelaCell(cell, num);
+                marked = true;
             }
-        }
+        });
     }
+    if (marked) _syncMarkedToServer();
 }
-var _autoMarkGrids = null;
 
 function toggleAutoMark() {
     autoMarkEnabled = !autoMarkEnabled;
@@ -266,10 +297,23 @@ function listenToRound(roundId) {
 
         var playerCount = data.player_count || 0;
         var roundStake = data.stake || currentStake || 10;
-        var derash = Math.round(playerCount * roundStake * 0.75 * 10) / 10;
+        var totalPool = Math.round(playerCount * roundStake * 0.75 * 10) / 10;
+        var numWinners = (data.winners || []).length;
+        var perPlayer = numWinners > 0 ? Math.round(totalPool / numWinners * 10) / 10 : totalPool;
+        
         if (elPlayers) elPlayers.textContent = playerCount;
-        if (elDerash) elDerash.textContent = derash + ' ETB';
+        if (elDerash) elDerash.textContent = totalPool + ' ETB';
         if (elCalledCount) elCalledCount.textContent = (data.called_numbers || []).length;
+        
+        // Show per-player DERASH
+        var elPerPlayer = document.getElementById('game-per-player');
+        if (elPerPlayer) {
+            if (numWinners > 0) {
+                elPerPlayer.textContent = perPlayer + ' ETB each';
+            } else {
+                elPerPlayer.textContent = totalPool + ' ETB';
+            }
+        }
 
         if (data.status === 'selecting') {
             if (elCountdown) {
@@ -380,8 +424,6 @@ function checkBingoLocal(flat, called) {
     for (var c = 0; c < 5; c++) { if (grid.every(function(row) { return isM(row[c]); })) return true; }
     if ([0,1,2,3,4].every(function(i) { return isM(grid[i][i]); })) return true;
     if ([0,1,2,3,4].every(function(i) { return isM(grid[i][4-i]); })) return true;
-    var corners = [[0,0],[0,4],[4,0],[4,4]];
-    if (corners.every(function(pos) { var n = grid[pos[0]][pos[1]]; return n !== 0 && calledSet.has(n); })) return true;
     return false;
 }
 
@@ -397,9 +439,9 @@ function handleRoundCompleted(data) {
     var isWinner = (data.winners || []).includes(uidStr);
     var noWinner = !data.winners || data.winners.length === 0;
 
-    playWinSound();
-
-    if (noWinner) {
+    if (isWinner) {
+        setTimeout(function() { showWinModal(data); }, 5000);
+    } else if (noWinner) {
         var winnerName = data.winner_name || '';
         if (winnerName === 'No players') {
             isSpectator = false;
@@ -410,65 +452,58 @@ function handleRoundCompleted(data) {
             showToast('All numbers called! No winner this round.');
         }
         setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 4000);
+    } else if (isSpectator) {
+        var winnerName = data.winner_name || 'Unknown';
+        var prize = Math.round((data.prize_per_winner || 0) * 10) / 10;
+        var winnerCount = (data.winners || []).length;
+        if (winnerCount > 1) {
+            showToast(winnerCount + ' winners split ' + prize + ' ETB each!');
+        } else {
+            showToast(winnerName + ' won ' + prize + ' ETB!');
+        }
+        setTimeout(async function() { isSpectator = false; await navigateTo('home'); }, 5000);
     } else {
-        setTimeout(function() { showWinModal(data, isWinner); }, 3000);
+        showToast('Game over! Better luck next time.');
+        setTimeout(async function() { await navigateTo('home'); }, 3000);
     }
 }
 
-function showWinModal(data, isWinner) {
+function showWinModal(data) {
     var wn = document.getElementById('winner-name');
     var wc = document.getElementById('winner-cartela');
     var wp = document.getElementById('winner-prize');
-    var winnerName = data.winner_name || 'Player';
-    if (wn) {
-        if (isWinner) {
-            wn.textContent = 'You Won!';
-            wn.style.color = '#F97316';
-        } else {
-            wn.textContent = winnerName + ' Won!';
-            wn.style.color = '#fff';
-        }
-    }
+    if (wn) wn.textContent = (currentUser ? currentUser.first_name : 'Player') || 'Player';
     var cartelaNum = Array.isArray(data.winning_cartela) ? data.winning_cartela[0] : data.winning_cartela;
     if (wc) wc.textContent = cartelaNum || '?';
     if (wp) wp.textContent = (Math.round((data.prize_per_winner || 0) * 10) / 10) + ' ETB';
 
     var flat = myCartelas[cartelaNum];
     var winGrid = document.getElementById('win-cartela-grid');
-    if (winGrid) winGrid.innerHTML = '';
-
-    function renderCartelaGrid(flatData) {
-        if (!winGrid || !flatData) return;
+    if (winGrid) {
         winGrid.innerHTML = '';
-        var calledArr = data.called_numbers || [];
-        var calledSet = new Set(calledArr);
-        for (var i = 0; i < 25; i++) {
-            var num = flatData[i];
-            var cell = document.createElement('div');
-            cell.className = 'rounded text-[9px] font-bold text-center py-1';
-            if (num === 0) {
-                cell.textContent = '★';
-                cell.style.background = 'rgba(255,140,0,0.5)';
-                cell.style.color = '#fff';
-            } else if (calledSet.has(num)) {
-                cell.textContent = num;
-                cell.style.background = 'rgba(16,185,129,0.5)';
-                cell.style.color = '#fff';
-            } else {
-                cell.textContent = num;
-                cell.style.background = 'rgba(255,255,255,0.1)';
-                cell.style.color = 'rgba(255,255,255,0.5)';
+        if (flat) {
+            var calledArr = data.called_numbers || [];
+            var calledSet = new Set(calledArr);
+            for (var i = 0; i < 25; i++) {
+                var num = flat[i];
+                var cell = document.createElement('div');
+                cell.className = 'rounded text-[9px] font-bold text-center py-1';
+                if (num === 0) {
+                    cell.textContent = '★';
+                    cell.style.background = 'rgba(255,140,0,0.5)';
+                    cell.style.color = '#fff';
+                } else if (calledSet.has(num)) {
+                    cell.textContent = num;
+                    cell.style.background = 'rgba(16,185,129,0.5)';
+                    cell.style.color = '#fff';
+                } else {
+                    cell.textContent = num;
+                    cell.style.background = 'rgba(255,255,255,0.1)';
+                    cell.style.color = 'rgba(255,255,255,0.5)';
+                }
+                winGrid.appendChild(cell);
             }
-            winGrid.appendChild(cell);
         }
-    }
-
-    if (flat) {
-        renderCartelaGrid(flat);
-    } else if (cartelaNum) {
-        db.collection('cartelas_master').doc(String(cartelaNum)).get().then(function(doc) {
-            if (doc.exists) renderCartelaGrid(doc.data().cartela);
-        }).catch(function() {});
     }
 
     var winModal = document.getElementById('win-modal');
@@ -542,5 +577,5 @@ function leaveGame() {
     calledNumbers = new Set();
     selectedCartelas = [];
     autoMarkEnabled = false;
-    stopAllAudio();
+    stopBgMusic();
 }
