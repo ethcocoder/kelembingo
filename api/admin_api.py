@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 import socketio
-from fastapi import FastAPI, HTTPException, Query as FastAPIQuery
+from fastapi import FastAPI, HTTPException, Query as FastAPIQuery, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -22,6 +22,17 @@ from telegram import Bot
 # Firebase replaced by SQLAlchemy emulator (firestore_db.py)
 
 logger = logging.getLogger(__name__)
+
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+
+
+def verify_internal_key(request: Request):
+    """FastAPI dependency — rejects requests missing the internal API key."""
+    if INTERNAL_API_KEY:
+        key = request.headers.get("X-Internal-Key", "")
+        if key != INTERNAL_API_KEY:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
 
 # ─── Async DB Helper ───
 async def _db(call):
