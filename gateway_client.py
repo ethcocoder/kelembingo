@@ -1,14 +1,16 @@
 """
-HTTP client that mirrors MockFirestoreClient interface via Gateway REST API.
+Synchronous HTTP client that mirrors MockFirestoreClient interface via Gateway REST API.
 
 Bot services use this instead of a local SQLite — all CRUD goes through
 the Gateway, so only one process ever touches the DB file.
 
-Usage (drop-in replacement for db.collection(...)):
+Usage (drop-in for db.collection(...)):
 
-    from gateway_client import GatewayClient as FirestoreClient
-    db = FirestoreClient()
-    user = await db.collection('users').document('123').get()
+    from gateway_client import GatewayClient
+    db = GatewayClient()
+    user_doc = db.collection('users').document('123').get()  # sync, same as MockFirestoreClient
+    if user_doc.exists:
+        data = user_doc.to_dict()
 
 During Phase 0 (same-container), GATEWAY_URL defaults to localhost.
 After the split, set GATEWAY_URL to the gateway's Render URL.
@@ -18,51 +20,12 @@ import os
 import json
 import logging
 import httpx
+from firestore_db import Increment, ArrayUnion, ArrayRemove, FieldFilter
 
 logger = logging.getLogger(__name__)
 
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8000")
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
-
-
-class GatewayDocSnapshot:
-    __slots__ = ("_id", "_data", "exists")
-
-    def __init__(self, doc_id, data_dict):
-        self._id = doc_id
-        self._data = data_dict
-        self.exists = data_dict is not None
-
-    @property
-    def id(self):
-        return self._id
-
-    def to_dict(self):
-        return self._data
-
-
-class GatewayDocRef:
-    def __init__(self, client, collection, doc_id):
-        self._client = client
-        self._collection = collection
-        self._id = doc_id
-
-    async def get(self):
-        data = await self._client._request("GET", f"/api/db/{self._collection}/{self._id}")
-        if data is None:
-            return GatewayDocSnapshot(self._id, None)
-        return GatewayDocSnapshot(data.get("id"), data.get("data"))
-
-    async def set(self, data, merge=False):
-        await self._client._request("POST", f"/api/db/{self._collection}/{self._id}",
-                                    json={"data": _scrub(data), "merge": merge})
-
-    async def update(self, data):
-        await self._client._request("PATCH", f"/api/db/{self._collection}/{self._id}",
-                                    json={"data": _scrub(data)})
-
-    async def delete(self):
-        await self._client._request("DELETE", f"/api/db/{self._collection}/{self._id}")
 
 
 def _scrub(data):
@@ -80,7 +43,52 @@ def _scrub(data):
     return data
 
 
+class GatewayDocSnapshot:
+    """Mimics firestore_db.DocumentSnapshot."""
+    __slots__ = ("_id", "_data", "exists")
+
+    def __init__(self, doc_id, data_dict):
+        self._id = doc_id
+        self._data = data_dict
+        self.exists = data_dict is not None
+
+    @property
+    def id(self):
+        return self._id
+
+    def to_dict(self):
+        return self._data
+
+
+class GatewayDocRef:
+    """Mimics firestore_db.DocumentRef via synchronous HTTP calls."""
+
+    def __init__(self, client, collection, doc_id):
+        self._client = client
+        self._collection = collection
+        self._id = doc_id
+
+    def get(self):
+        data = self._client._request("GET", f"/api/db/{self._collection}/{self._id}")
+        if data is None:
+            return GatewayDocSnapshot(self._id, None)
+        return GatewayDocSnapshot(data.get("id"), data.get("data"))
+
+    def set(self, data, merge=False):
+        self._client._request("POST", f"/api/db/{self._collection}/{self._id}",
+                              json={"data": _scrub(data), "merge": merge})
+
+    def update(self, data):
+        self._client._request("PATCH", f"/api/db/{self._collection}/{self._id}",
+                              json={"data": _scrub(data)})
+
+    def delete(self):
+        self._client._request("DELETE", f"/api/db/{self._collection}/{self._id}")
+
+
 class GatewayCollectionRef:
+    """Mimics firestore_db.CollectionRef via synchronous HTTP calls."""
+
     def __init__(self, client, name):
         self._client = client
         self._name = name
@@ -105,7 +113,7 @@ class GatewayCollectionRef:
         self._limit_n = n
         return self
 
-    async def get(self):
+    def get(self):
         params = {}
         if self._filters:
             params["filters"] = json.dumps(self._filters)
@@ -114,64 +122,76 @@ class GatewayCollectionRef:
             params["order_dir"] = self._order_dir
         if self._limit_n is not None:
             params["limit_n"] = self._limit_n
-        data = await self._client._request("GET", f"/api/db/{self._name}", params=params)
+        data = self._client._request("GET", f"/api/db/{self._name}", params=params)
         return [GatewayDocSnapshot(d["id"], d["data"]) for d in (data or [])]
 
-    async def stream(self):
-        for doc in await self.get():
-            yield doc
+    def stream(self):
+        return iter(self.get())
 
-    async def add(self, data):
-        result = await self._client._request("POST", f"/api/db/{self._name}",
-                                             json={"data": _scrub(data)})
+    def add(self, data):
+        result = self._client._request("POST", f"/api/db/{self._name}",
+                                       json={"data": _scrub(data)})
         doc_id = result.get("id", "")
         return GatewayDocRef(self._client, self._name, doc_id)
 
 
 class GatewayTransaction:
     """Minimal transaction — individual ops go over HTTP (no multi-op atomicity).
-    
+
     Each read/write inside a @transactional block fires a separate HTTP request.
     There is no server-side rollback. For true atomic operations the Gateway
     should expose a dedicated endpoint (e.g. POST /api/transfer-funds).
     """
+
     def __init__(self, client):
         self._client = client
+        self._ops = []
 
     def get(self, ref):
-        raise NotImplementedError("GatewayTransaction.get not supported — use dedicated endpoints")
-    
+        raise NotImplementedError(
+            "GatewayTransaction.get not supported over HTTP. "
+            "Use dedicated atomic endpoints on the Gateway."
+        )
+
     def update(self, ref, data):
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.ensure_future(ref.update(data))
-            else:
-                loop.run_until_complete(ref.update(data))
-        except Exception:
-            pass
+        self._ops.append((ref, data))
+
+    def commit(self):
+        for ref, data in self._ops:
+            ref.update(data)
 
 
 def transactional(func):
-    """Compatibility shim — no-op wrapper for @transactional decorator.
-    
-    Real transactions are handled server-side by the Gateway.
+    """Compatibility shim for the @transactional decorator.
+
+    Real atomicity is handled server-side by the Gateway.
     """
     def wrapper(transaction, *args, **kwargs):
         return func(transaction, *args, **kwargs)
     return wrapper
 
 
+class MockIncrement(Increment):
+    """Identity-preserving Increment subclass for cross-module compatibility."""
+    pass
+
+
 class GatewayClient:
-    """Drop-in for MockFirestoreClient backed by Gateway HTTP API."""
+    """Synchronous drop-in replacement for MockFirestoreClient backed by Gateway HTTP API.
+
+    Usage:
+        db = GatewayClient()
+        user_doc = db.collection('users').document('123').get()
+    """
 
     def __init__(self, base_url=None, api_key=None):
         self.base_url = base_url or GATEWAY_URL
         self.api_key = api_key or INTERNAL_API_KEY
-        self._headers = {"X-Internal-Key": self.api_key} if self.api_key else {}
-        self._http = httpx.AsyncClient(base_url=self.base_url,
-                                       headers=self._headers, timeout=15.0)
+        self._http = httpx.Client(
+            base_url=self.base_url,
+            headers={"X-Internal-Key": self.api_key} if self.api_key else {},
+            timeout=15.0,
+        )
 
     def collection(self, name):
         return GatewayCollectionRef(self, name)
@@ -179,9 +199,9 @@ class GatewayClient:
     def transaction(self):
         return GatewayTransaction(self)
 
-    async def _request(self, method, path, **kwargs):
+    def _request(self, method, path, **kwargs):
         try:
-            r = await self._http.request(method, path, **kwargs)
+            r = self._http.request(method, path, **kwargs)
             if r.status_code == 404:
                 return None
             r.raise_for_status()
@@ -195,15 +215,30 @@ class GatewayClient:
             logger.error(f"Gateway {method} {path}: {e}")
             raise
 
-    async def close(self):
-        await self._http.aclose()
+    def close(self):
+        self._http.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
 
 # ── Convenience singleton ──
-default_client = None
+_default_client = None
+
 
 def get_client():
-    global default_client
-    if default_client is None:
-        default_client = GatewayClient()
-    return default_client
+    global _default_client
+    if _default_client is None:
+        _default_client = GatewayClient()
+    return _default_client
+
+
+__all__ = [
+    "GatewayClient", "GatewayCollectionRef", "GatewayDocRef",
+    "GatewayDocSnapshot", "GatewayTransaction", "transactional",
+    "get_client", "Increment", "ArrayUnion", "ArrayRemove", "FieldFilter",
+    "MockIncrement",
+]
