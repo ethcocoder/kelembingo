@@ -1,14 +1,72 @@
 services:
+  # ── Gateway: API + SQLite + Backup ──
   - type: web
-    name: kelembingo
+    name: kelembingo-gateway
     runtime: docker
     plan: free
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.gateway
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: RENDER_API_ONLY
+        value: "true"
+      - key: BACKUP_INTERVAL_MINUTES
+        value: "1"
     autoDeploy: true
 
+  # ── Bots: Telegram bot processes ──
+  - type: web
+    name: kelembingo-bots
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.bot
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: USE_GATEWAY
+        value: "true"
+      - key: GATEWAY_URL
+        value: https://kelembingo-gateway.onrender.com
+    autoDeploy: true
 
+  # ── Game Engine: Stake 10 ──
+  - type: web
+    name: kelembingo-engine-10
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.engine
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: USE_GATEWAY
+        value: "true"
+      - key: GATEWAY_URL
+        value: https://kelembingo-gateway.onrender.com
+      - key: ENGINE_STAKE
+        value: "10"
+    autoDeploy: true
+
+  # ── Game Engine: Stake 20 ──
+  - type: web
+    name: kelembingo-engine-20
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.engine
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: USE_GATEWAY
+        value: "true"
+      - key: GATEWAY_URL
+        value: https://kelembingo-gateway.onrender.com
+      - key: ENGINE_STAKE
+        value: "20"
+    autoDeploy: true

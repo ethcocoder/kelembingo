@@ -1,6 +1,7 @@
 import os
 import logging
 import multiprocessing
+import threading
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -92,22 +93,38 @@ def auto_restore_on_startup():
         logger.warning(f"Startup restore error (continuing with empty DB): {e}")
 
 
+def run_health_server():
+    """Minimal HTTP server for Render health checks (no full API)."""
+    import uvicorn
+    from fastapi import FastAPI, Response
+    health_app = FastAPI()
+
+    @health_app.get("/api/health")
+    async def health():
+        return Response(status_code=200, content='{"status":"ok"}', media_type="application/json")
+
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(health_app, host="0.0.0.0", port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     try:
         multiprocessing.set_start_method("spawn")
     except RuntimeError:
         pass
 
-    logger.info("🚀 Starting Kelem Bingo Platform...")
+    is_gateway_mode = bool(os.getenv("USE_GATEWAY"))
 
-    # Re-seed from the latest backup if this deploy came up with an empty DB.
-    auto_restore_on_startup()
+    if is_gateway_mode:
+        logger.info("🚀 Starting Kelem Bingo Bots (Gateway mode)...")
+    else:
+        logger.info("🚀 Starting Kelem Bingo Platform...")
+        auto_restore_on_startup()
 
     game_proc = multiprocessing.Process(target=run_game_bot, name="GameBot")
     admin_proc = multiprocessing.Process(target=run_admin_bot, name="AdminBot")
     support_proc = multiprocessing.Process(target=run_support_bot, name="SupportBot")
     admin_support_proc = multiprocessing.Process(target=run_admin_support_bot, name="AdminSupportBot")
-    backup_proc = multiprocessing.Process(target=run_backup_scheduler, name="BackupScheduler")
 
     game_proc.start()
     logger.info("✅ Game Bot started")
@@ -117,17 +134,39 @@ if __name__ == "__main__":
     logger.info("✅ Support Bot started")
     admin_support_proc.start()
     logger.info("✅ Admin Support Bot started")
-    backup_proc.start()
-    logger.info("✅ Backup Scheduler started")
-    logger.info("✅ API Server starting...")
-    logger.info("🎯 All services running!")
 
-    try:
-        run_api()
-    except KeyboardInterrupt:
-        logger.info("🛑 Shutting down...")
-    finally:
-        for proc in (game_proc, admin_proc, support_proc, admin_support_proc, backup_proc):
-            if proc.is_alive():
-                proc.terminate()
-                proc.join(timeout=5)
+    if not is_gateway_mode:
+        backup_proc = multiprocessing.Process(target=run_backup_scheduler, name="BackupScheduler")
+        backup_proc.start()
+        logger.info("✅ Backup Scheduler started")
+        logger.info("✅ API Server starting...")
+        logger.info("🎯 All services running!")
+        try:
+            run_api()
+        except KeyboardInterrupt:
+            logger.info("🛑 Shutting down...")
+        finally:
+            procs = [game_proc, admin_proc, support_proc, admin_support_proc, backup_proc]
+            for proc in procs:
+                if proc.is_alive():
+                    proc.terminate()
+                    proc.join(timeout=5)
+    else:
+        logger.info("🎯 Bot service running (no API, no backup — those are on the Gateway)!")
+        # Start minimal health check server for Render
+        health_thread = threading.Thread(target=run_health_server, daemon=True)
+        health_thread.start()
+        logger.info("✅ Health check server started")
+
+        # Keep the main process alive waiting for bot subprocesses
+        try:
+            procs = [game_proc, admin_proc, support_proc, admin_support_proc]
+            while any(p.is_alive() for p in procs):
+                for p in procs:
+                    p.join(timeout=1)
+        except KeyboardInterrupt:
+            logger.info("🛑 Shutting down...")
+            for proc in procs:
+                if proc.is_alive():
+                    proc.terminate()
+                    proc.join(timeout=5)
