@@ -522,8 +522,28 @@ async def start_background_monitor():
             except Exception as e:
                 logger.warning(f"Error in background monitor: {e}")
             await asyncio.sleep(5)
+    
+    async def _keep_alive_pinger():
+        """Ping sibling services every 5 min so Render free tier doesn't spin them down."""
+        import httpx
+        peers = [
+            "https://kelembingo-bots.onrender.com/api/health",
+            "https://kelembingo-engine-10.onrender.com/api/health",
+            "https://kelembingo-engine-20.onrender.com/api/health",
+        ]
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            while True:
+                await asyncio.sleep(300)  # 5 minutes
+                for url in peers:
+                    try:
+                        r = await client.get(url)
+                        logger.debug(f"Keep-alive ping {url} → {r.status_code}")
+                    except Exception as e:
+                        logger.debug(f"Keep-alive ping {url} failed: {e}")
+    
     asyncio.create_task(_monitor())
     asyncio.create_task(_event_broadcast_loop())
+    asyncio.create_task(_keep_alive_pinger())
 
 
 # ═══════════════════════════════════════════════════════════════
